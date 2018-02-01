@@ -1,0 +1,4 @@
+Flask==0.12.2
+configparser==3.5.0
+pandas_datareader==0.6.0
+python-nvd3==0.14.2
