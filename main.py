@@ -40,8 +40,9 @@ def load():
   #date_start = date_end - datetime.now()
 
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
-  #'last 365 days' really means 'all weekdays in the last 365 days' which is 261. The other way is to use ".reindex" on the output instead
-  datelist = pd.bdate_range(end=pd.datetime.today(), periods=365 - 52*2).tolist()
+  #'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
+  #The other way is to use ".reindex" on the output instead
+  datelist = pd.bdate_range(end=pd.datetime.today(), periods=365 - 52*2+3).tolist()
 
   date_start = datelist[0]
   date_end = datelist[-1]
@@ -69,24 +70,25 @@ def load():
   df['Yield']        = df['Close'] - df['Open']
   df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
   df['Yield % Open'] = df['Yield']
+  df['Yield % Open 3'] = df['Yield']
 
-  period = 3 # data for the previous 3 days; can be externalized
+  days = 3 # data for the previous 3 days; can be externalized
   for counter, val in enumerate (df['Yield']):
-    if counter < period:
+    if counter < days:
       df['Yield Avg'][counter] = 0
       df['Yield % Open'][counter] = 0
+      df['Yield % Open 3'][counter] = 0
       continue
 
     #get avg yield (amount and percent) for three previous days
-#    df['Yield Avg'][counter]    = round ((df['Yield'][counter-1] + df['Yield'][counter-2] + df['Yield'][counter-3]) / 3, 2)
-    print ("count1:", round ( (df['Yield'][counter-period+2] + df['Yield'][counter-period+1] + df['Yield'][counter-period]) / period, 2 ))
-    print (counter-period, counter-1, df['Yield'][counter-period:counter-1])  #df['Yield'][counter-period:counter-1] returns "Date minor" instead of numbers
-    print ("count2:", round ( sum(df['Yield'][counter-period:counter-1]) / period, 2))
-
-    df['Yield Avg'][counter]    = round ((df['Yield'][counter-1] + df['Yield'][counter-2] + df['Yield'][counter-3]) / 3, 2)
-
-    df['Yield % Open'][counter] = round (df['Yield Avg'][counter]/df['Open'][counter]*100,2)
-
+    #print (counter-days, counter-1, df['Yield'][counter-days:counter-1].sum() / days)
+    df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
+    df['Yield % Open'][counter]   = round (df['Yield'][counter] / df['Open'][counter]*100, 6)
+    #this one below is not getting calculated correctly
+    df['Yield % Open 3'][counter] = round (df['Yield % Open'][counter-days:counter-1].sum() / days, 6)
+    print ("range: ", df['Yield % Open'][counter-days:counter-1], "sum:", df['Yield % Open'][counter-days:counter-1].sum(), "sum/3:", df['Yield % Open'][counter-days:counter-1].sum() / days)
+    if counter > 5:
+      break
 
 
 

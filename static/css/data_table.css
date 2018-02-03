@@ -178,7 +178,7 @@ tbody tr:nth-child(even) {
 
 tbody tr {
   font-family: OpenSans-Regular;
-  font-size: 15px;
+  font-size: 10px;
   color: #404040; #values font color
   line-height: 1.2;
   font-weight: unset;
@@ -243,7 +243,7 @@ tbody tr:hover {
   }
   table tbody tr td:before {
     font-family: OpenSans-Regular;
-    font-size: 14px;
+    font-size: 10px;
     color: #bbbbbb;
     line-height: 1.2;
     font-weight: unset;
@@ -287,7 +287,7 @@ tbody tr:hover {
   }
 
   tbody tr {
-    font-size: 14px;
+    font-size: 10px;
   }
 }
 
