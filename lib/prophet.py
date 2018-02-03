@@ -40,17 +40,16 @@ class Prophet:
     return 0
 
   def parse_template(self, file_template, dict_content):
+    if not os.path.exists(file_template):
+      return "template file %s does not exist" % file_template
 
-      if not os.path.exists(file_template):
-        return "template file %s does not exist" % file_template
-
-      with open(file_template, "r") as handle_template:
-        string_template = handle_template.read()
-        #print "file_template", file_template,
-        #print "string_template", string_template
-        print (dict_content)
-        #string_html = string_template % dict_content
-        string_html = string_template.format(**dict_content)
-        return string_html
+    with open(file_template, "r") as handle_template:
+      string_template = handle_template.read()
+      #print "file_template", file_template,
+      #print "string_template", string_template
+      #print (dict_content)
+      #string_html = string_template % dict_content
+      string_html = string_template.format(**dict_content) #send in as kwargs
+      return string_html
 
 
