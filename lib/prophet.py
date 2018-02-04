@@ -7,13 +7,14 @@ import configparser
 from datetime import datetime
 
 class Prophet:
-  def __init__(self, ticker, inifile='./conf/prophet.ini', env='default', debug=5, logfile='log/prophet.log'):
+  def __init__(self, ticker, days, inifile='./conf/prophet.ini', env='default', debug=5, logfile='log/prophet.log'):
     """instantiate the object"""
-    self.env = env #something like dev, staging, prod, whatever
-    self.ticker = ticker
+    self.env     = env #environment - for the future, to acess different sections of ino files or diferent cloud envs (something like dev, staging, prod, whatever
+    self.ticker  = ticker
+    self.days    = days
     self.logfile = logfile #using local default location for the logs since I might not have permissions towrite in your /var/log
     self.logfile = logfile
-    self.debug = debug
+    self.debug   = debug
 
     if (os.path.isfile(inifile) != True):
       error = "Config file does not exist: %s" % inifile
@@ -53,4 +54,32 @@ class Prophet:
       print ("parsed: ", len(string_html))
       return string_html
 
+  def set_frame(self, panel):
+    df = panel.to_frame()
+    df['Spread']       = df['High'] - df['Low']
+    df['Yield']        = df['Close'] - df['Open']
+    df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
+    df['Yield % Open'] = df['Yield']
+    df['Yield % Open 3'] = df['Yield']
+
+    days = self.days
+    for counter, val in enumerate (df['Yield']):
+      if counter < days: #starting days that are used for calculating things for the following days bud tdo not have predecessors to do produce preditions of their own
+        df['Yield Avg'][counter] = 0
+        df['Yield % Open'][counter] = 0
+        df['Yield % Open 3'][counter] = 0
+        continue
+
+      print ("counter:", counter)
+      #get avg yield (amount and percent) for three previous days
+      #print (counter-days, counter-1, df['Yield'][counter-days:counter-1].sum() / days)
+      df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
+      df['Yield % Open'][counter]   = round (df['Yield'][counter] / df['Open'][counter]*100, 6)
+      #this one below is not getting calculated correctly
+      df['Yield % Open 3'][counter] = round (df['Yield % Open'][counter-days:counter-1].sum() / days, 6)
+      print ("range: ", df['Yield % Open'][counter-days:counter-1], "sum:", df['Yield % Open'][counter-days:counter-1].sum(), "sum/3:", df['Yield % Open'][counter-days:counter-1].sum() / days)
+      if counter > 5:
+        break
+
+    return df
 

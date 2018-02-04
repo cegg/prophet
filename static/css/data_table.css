@@ -118,15 +118,6 @@ iframe {
   padding: 33px 30px;
 }
 
-.header_vars {
-  font-family: OpenSans-Regular;
-  font-size: 14px;
-  color: #ccc;
-  line-height: 1.2;
-  font-weight: bold;
-  height: 60px;
-}
-
 .wrap-table100 {
   width: 1170px;
 }
@@ -185,7 +176,7 @@ tbody tr:nth-child(even) {
 
 tbody tr {
   font-family: OpenSans-Regular;
-  font-size: 10px;
+  font-size: 12px;
   color: #404040; #values font color
   line-height: 1.2;
   font-weight: unset;
@@ -250,7 +241,7 @@ tbody tr:hover {
   }
   table tbody tr td:before {
     font-family: OpenSans-Regular;
-    font-size: 10px;
+    font-size: 12px;
     color: #bbbbbb;
     line-height: 1.2;
     font-weight: unset;
@@ -294,7 +285,7 @@ tbody tr:hover {
   }
 
   tbody tr {
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 

@@ -9,8 +9,7 @@ import os, inspect
 import numpy as np
 import pandas as pd
 
-
-#set where to find the locally installed packages are
+#set where to find locally installed packages
 currentdir = os.path.abspath(inspect.getfile(inspect.currentframe()))
 libdir = os.path.dirname(currentdir) + '/lib'
 sys.path.insert(0,libdir)
@@ -19,29 +18,29 @@ sys.path.insert(0,libdir)
 from flask import Flask
 from pandas_datareader import data
 from prophet import Prophet
-#from datetime import datetime
 import nvd3
 
+from werkzeug.routing import BaseConverter # that's for submitting ticker and days in the url
+class RegexConverter(BaseConverter):
+  def __init__(self, url_map, *items):
+    super(RegexConverter, self).__init__(url_map)
+    self.regex = items[0]
+
 app = Flask(__name__)
+
+app.url_map.converters['regex'] = RegexConverter
 
 @app.route("/test")
 def hello():
   """checks if flask works"""
   return "flask works"
 
-from werkzeug.routing import BaseConverter
-class RegexConverter(BaseConverter):
-  def __init__(self, url_map, *items):
-    super(RegexConverter, self).__init__(url_map)
-    self.regex = items[0]
-
-app.url_map.converters['regex'] = RegexConverter
-
 #for version 1 just do not allow more than 10 days of historical data to be analyzed
-@app.route('/<regex("[a-zA-Z0-9]{2,5},\d{1}"):pars>/')
+@app.route('/<regex("[a-zA-Z0-9]{2,5},\d+"):pars>/')
 def setup(pars):
   ticker, days = pars.split(',')
-  print (ticker, days)
+  if int(days) > 10:
+    return "no more than 10 days of data can be ananyzed"
   return load(ticker, int(days))
 
 #@app.route('/<regex("[abcABC0-9]{4,6}"):uid>-<slug>/')
@@ -51,12 +50,11 @@ def setup(pars):
 # def setup(ticker, days):
 #     return "pars: %s, %s" % (ticker, days)
 
-@app.route("/")
+@app.route("/") #default load
 def load(ticker='FB', days=3):
   """main table load"""
-  prophet = Prophet(ticker)
+  prophet = Prophet(ticker, days)
 
-  print ("load:", ticker, days)
   source = 'google'
   #date_end =  datetime.now() #also can be submitted in API call parameters...
   #date_start = date_end - datetime.now()
@@ -77,50 +75,21 @@ def load(ticker='FB', days=3):
     prophet.log(error)
     return error # just serve the error description in this case
 
-  print (panel)
-  print ("panel type", type(panel))
-
+  # experiment with just 'Close' call #TODO remove at the end if not needed
   panel_close = panel.ix['Close']
   close_table = panel_close.describe()
   html_close_table = str(close_table.to_html())
 
   #panel = panel.dropna(axis=1, how='any')
 
-  df = panel.to_frame()
-  print ("frame type: ", type(df))
-  df['Spread']       = df['High'] - df['Low']
-  df['Yield']        = df['Close'] - df['Open']
-  df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
-  df['Yield % Open'] = df['Yield']
-  df['Yield % Open 3'] = df['Yield']
-
-  #days = 3 # data for the previous 3 days; can be externalized
-  for counter, val in enumerate (df['Yield']):
-    if counter < days:
-      df['Yield Avg'][counter] = 0
-      df['Yield % Open'][counter] = 0
-      df['Yield % Open 3'][counter] = 0
-      continue
-
-    print ("counter:", counter)
-    #get avg yield (amount and percent) for three previous days
-    #print (counter-days, counter-1, df['Yield'][counter-days:counter-1].sum() / days)
-    df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
-    df['Yield % Open'][counter]   = round (df['Yield'][counter] / df['Open'][counter]*100, 6)
-    #this one below is not getting calculated correctly
-    df['Yield % Open 3'][counter] = round (df['Yield % Open'][counter-days:counter-1].sum() / days, 6)
-    print ("range: ", df['Yield % Open'][counter-days:counter-1], "sum:", df['Yield % Open'][counter-days:counter-1].sum(), "sum/3:", df['Yield % Open'][counter-days:counter-1].sum() / days)
-    if counter > 5:
-      break
+  df = prophet.set_frame(panel)
 
 
 
-
-
-#  chart_type = 'multiBarHorizontalData'
+#  chart_type = 'multiBarHorizontalData' #does not work
 #  chart = nvd3.multiBarHorizontalData(name=chart_type, height=500, width=500)
 
-#example chart
+  #experiment with charts lib #TODO: remove at the end
   chart_type = 'discreteBarChart'
   chart = nvd3.discreteBarChart(name=chart_type, height=500, width=500)
   ydata = [float(x) for x in np.random.randn(10)]
@@ -133,13 +102,12 @@ def load(ticker='FB', days=3):
 
   dict_table_header = { 'Ticker': [ticker],
                         'Days to Analyze': [days],
-                        'Request': ['http://127.0.01.:500/<ticker>,<days>']
+                        'Browser Request': ['http://127.0.01.:5000/[<ticker>,<days>]']
                       }
   df_table_header = pd.DataFrame.from_dict(dict_table_header)
   html_table_header = df_table_header.to_html()
 
-  dict_content = {'ticker'            : ticker,
-                  'days'              : days,
+  dict_content = {
                   'html_header_table' : html_table_header,
                   'html_close_table'  : html_close_table,
                   'html_chart'        : str(html_chart),
