@@ -107,8 +107,6 @@ iframe {
   min-height: 100vh;
   background: #dddddd;
 
-
-
   display: -webkit-box;
   display: -webkit-flex;
   display: -moz-box;
@@ -118,6 +116,15 @@ iframe {
   justify-content: center;
   flex-wrap: wrap;
   padding: 33px 30px;
+}
+
+.header_vars {
+  font-family: OpenSans-Regular;
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.2;
+  font-weight: bold;
+  height: 60px;
 }
 
 .wrap-table100 {
@@ -166,8 +173,8 @@ table td.r, table th.r {
 
 .table100-head th{
   font-family: OpenSans-Regular;
-  font-size: 18px;
-  color: #fff;
+  font-size: 14px;
+  color: #ccc;
   line-height: 1.2;
   font-weight: unset;
 }

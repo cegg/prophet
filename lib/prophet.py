@@ -50,6 +50,7 @@ class Prophet:
       #print (dict_content)
       #string_html = string_template % dict_content
       string_html = string_template.format(**dict_content) #send in as kwargs
+      print ("parsed: ", len(string_html))
       return string_html
 
 

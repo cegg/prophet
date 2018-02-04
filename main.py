@@ -29,20 +29,42 @@ def hello():
   """checks if flask works"""
   return "flask works"
 
+from werkzeug.routing import BaseConverter
+class RegexConverter(BaseConverter):
+  def __init__(self, url_map, *items):
+    super(RegexConverter, self).__init__(url_map)
+    self.regex = items[0]
+
+app.url_map.converters['regex'] = RegexConverter
+
+#for version 1 just do not allow more than 10 days of historical data to be analyzed
+@app.route('/<regex("[a-zA-Z0-9]{2,5},\d{1}"):pars>/')
+def setup(pars):
+  ticker, days = pars.split(',')
+  print (ticker, days)
+  return load(ticker, int(days))
+
+#@app.route('/<regex("[abcABC0-9]{4,6}"):uid>-<slug>/')
+
+#TODO figure out what multy-match pattern in flask is
+# @app.route('/<regex("[a-zA-Z0-9]{2,5}"):ticker,("[0-9]{1,2}"):days">/')
+# def setup(ticker, days):
+#     return "pars: %s, %s" % (ticker, days)
+
 @app.route("/")
-def load():
+def load(ticker='FB', days=3):
   """main table load"""
-  ticker = 'FB' #that really is better to be submitted in the route /FB but that's not in the requirements
   prophet = Prophet(ticker)
 
+  print ("load:", ticker, days)
   source = 'google'
   #date_end =  datetime.now() #also can be submitted in API call parameters...
   #date_start = date_end - datetime.now()
 
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
   #'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
-  #The other way is to use ".reindex" on the output instead
-  datelist = pd.bdate_range(end=pd.datetime.today(), periods=365 - 52*2+3).tolist()
+  #The other way is to use ".reindex" on the output instead on date_range output
+  datelist = pd.bdate_range(end=pd.datetime.today(), periods=365 - 52*2 + days).tolist()
 
   date_start = datelist[0]
   date_end = datelist[-1]
@@ -60,7 +82,7 @@ def load():
 
   panel_close = panel.ix['Close']
   close_table = panel_close.describe()
-  close_table_html = str(close_table.to_html())
+  html_close_table = str(close_table.to_html())
 
   #panel = panel.dropna(axis=1, how='any')
 
@@ -72,7 +94,7 @@ def load():
   df['Yield % Open'] = df['Yield']
   df['Yield % Open 3'] = df['Yield']
 
-  days = 3 # data for the previous 3 days; can be externalized
+  #days = 3 # data for the previous 3 days; can be externalized
   for counter, val in enumerate (df['Yield']):
     if counter < days:
       df['Yield Avg'][counter] = 0
@@ -80,6 +102,7 @@ def load():
       df['Yield % Open 3'][counter] = 0
       continue
 
+    print ("counter:", counter)
     #get avg yield (amount and percent) for three previous days
     #print (counter-days, counter-1, df['Yield'][counter-days:counter-1].sum() / days)
     df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
@@ -102,17 +125,29 @@ def load():
   chart = nvd3.discreteBarChart(name=chart_type, height=500, width=500)
   ydata = [float(x) for x in np.random.randn(10)]
   xdata = [int(x) for x in np.arange(10)]
-
   chart.add_serie(y=ydata, x=xdata)
   chart.buildhtml()
-  chart_html = chart.htmlcontent
-  panel_html = str(df.to_html())
-  #content = str(close_table) + str(chart_html) + str(panel.to_frame().to_html())
-  dict_content = {'close_table': close_table_html, 'chart_html': str(chart_html), 'panel_html': panel_html}
+  html_chart = chart.htmlcontent
+
+  html_panel = str(df.to_html())
+
+  dict_table_header = { 'Ticker': [ticker],
+                        'Days to Analyze': [days],
+                        'Request': ['http://127.0.01.:500/<ticker>,<days>']
+                      }
+  df_table_header = pd.DataFrame.from_dict(dict_table_header)
+  html_table_header = df_table_header.to_html()
+
+  dict_content = {'ticker'            : ticker,
+                  'days'              : days,
+                  'html_header_table' : html_table_header,
+                  'html_close_table'  : html_close_table,
+                  'html_chart'        : str(html_chart),
+                  'html_panel'       : html_panel
+  }
+
   return prophet.parse_template("%s/main.html" % prophet.config.get(prophet.env, 'templates'), dict_content)
 
-  #return chart_html
-  #return str(close_table) + str(chart_html) + str(panel.to_frame().to_html())
 
 
 if __name__ == "__main__":
