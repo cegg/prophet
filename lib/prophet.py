@@ -55,7 +55,8 @@ class Prophet:
       return string_html
 
   def set_frame(self, panel):
-    df = panel.to_frame()
+    # df = panel.to_frame()
+    df = panel[:,:,'FB'] # drop vertical minor axis, it's one ticket anyway
     df['Spread']       = df['High'] - df['Low']
     df['Yield']        = df['Close'] - df['Open']
     df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
@@ -63,6 +64,14 @@ class Prophet:
     df['Yield % Open 3'] = df['Yield']
 
     days = self.days
+
+
+   # df = panel[:,:,'FB']
+   #  for counter, val in enumerate (df_temp['Yield']):
+   #    z = generate_series_yield(df_temp)
+
+    # print ("ZZZ: ", z)
+
     for counter, val in enumerate (df['Yield']):
       if counter < days: #starting days that are used for calculating things for the following days bud tdo not have predecessors to do produce preditions of their own
         df['Yield Avg'][counter] = 0
@@ -83,3 +92,5 @@ class Prophet:
 
     return df
 
+def generate_series_yield(df, counter, days):
+  yield round (df['Yield'][counter-days:counter-1].sum() / days, 2)
