@@ -105,14 +105,14 @@ class Prophet:
         dict_tiers[column_name]['tier_medium_top'] = round(dict_tiers[column_name]['min'] + dict_tiers[column_name]['one_third']*2, 4)
         dict_tiers[column_name]['tier_high_top']   = round(dict_tiers[column_name]['max'])
 
-        print('column_name: ', column_name, 'min-max', dict_tiers[column_name]['min'], dict_tiers[column_name]['max'])
+        #print('column_name: ', column_name, 'min-max', dict_tiers[column_name]['min'], dict_tiers[column_name]['max'])
     return dict_tiers
 
-  def set_hmm(self, key, column_from, column_to, dict_tiers_column):
+  def set_hmm(self, column_name, key, column_from, column_to, dict_tiers_column):
 
     for counter, record in enumerate(column_from):
-      if counter > 50:
-        break
+      # if counter > 50:
+      #   break
 #      for day in range(1, self.days+1):
       print ("record of counter :")
       print (column_from[counter])
@@ -123,10 +123,11 @@ class Prophet:
         column_to[counter] = 'M' #medium
       else:
         column_to[counter] = 'H' #high
+
+
       #column[key] = int(column[key])
 
-
-olumn_to)
+      column_to[counter] = column_to[counter] + 'U' if (record > 0) else (column_to[counter] + 'D')
     return column_to
 
 def generate_series_yield(df, counter, days):

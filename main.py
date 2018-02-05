@@ -92,11 +92,9 @@ def load(ticker='FB', days=3):
   column_name = 'Yield % Open'
   key = 'hmm_symbol_%s' % column_name
   df[key] = ''
-  #df[key] = df['O']
-  column = prophet.set_hmm(key, df[column_name], df[key], dict_tiers[column_name])
+  column = prophet.set_hmm(column_name, key, df[column_name], df[key], dict_tiers[column_name])
   print ("type: ", type(column))
   df[key] = column
-
 
 
 #  chart_type = 'multiBarHorizontalData' #does not work
