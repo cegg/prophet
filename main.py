@@ -82,7 +82,20 @@ def load(ticker='FB', days=3):
 
   #panel = panel.dropna(axis=1, how='any')
 
-  df = prophet.set_frame(panel)
+  # df = panel.to_frame()
+  df = panel[:,:,'FB'] # drop vertical minor axis, it's one ticker anyway
+
+  df = prophet.enrich(df)
+  dict_tiers = prophet.set_tiers(df)
+  print ("after: ", dict_tiers)
+
+  column_name = 'Yield % Open'
+  key = 'hmm_symbol_%s' % column_name
+  df[key] = ''
+  #df[key] = df['O']
+  column = prophet.set_hmm(key, df[column_name], df[key], dict_tiers[column_name])
+  print ("type: ", type(column))
+  df[key] = column
 
 
 
