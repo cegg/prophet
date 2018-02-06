@@ -43,8 +43,8 @@ def setup(pars):
   days_back = int(days_back)
   if days > 5:
     return "No more than 5 days of history range for a given day can be analyzed"
-  if days_back > 500:
-    return "No more than 500 days of ticker history range can be analyzed"
+  if days_back > 700:
+    return "No more than 700 days of ticker history range can be analyzed"
 
   if (days_back/days < 100):
     return "Unrealistic ratio of ticker history range to record history range. Increase ticker history range or decrease record history range to be analyzed."
@@ -93,7 +93,7 @@ def load(ticker='FB', days=3, days_back=365):
 
   df = prophet.enrich(df)
   dict_tiers = prophet.set_tiers(df)
-  print ("set tiers: ", dict_tiers)
+  #print ("set tiers: ", dict_tiers)
 
   source_key = 'Yield % Open'
 
@@ -109,7 +109,9 @@ def load(ticker='FB', days=3, days_back=365):
   df['Check'] = ''
   df[target_key1], df[target_key2], df[target_key3] = prophet.set_hmm_state(df, source_key, target_key1, target_key2, target_key3, dict_tiers[source_key])
 
-  success_count = "%s out of %s" % (df['Check'].value_counts()['OK'], days_active)
+  success_count = int(df['Check'].value_counts()['OK'])
+  percent = round(success_count * 100 / days_active, 2)
+  stats_message = "{0} out of {1} ({2}%)".format(success_count, days_active, percent)
 
 #  chart_type = 'multiBarHorizontalData' #does not work
 #  chart = nvd3.multiBarHorizontalData(name=chart_type, height=500, width=500)
@@ -127,11 +129,14 @@ def load(ticker='FB', days=3, days_back=365):
 
   dict_table_header = { 'Ticker': [ticker],
                         'Days to Analyze': [days],
-                        'Browser Request': ['http://127.0.01.:5000/[<ticker>,<days>]'],
-                        'Predicted': success_count
+                        'Browser Request Format': ['http://127.0.01.:5000/[<ticker>,<days>,<range>]'],
+                        'Predicted': stats_message
                       }
   df_table_header = pd.DataFrame.from_dict(dict_table_header)
+  #does not work
+  #df_table_header.drop(df_table_header.columns[1], axis=1) #bogus empty column
   html_table_header = df_table_header.to_html()
+
 
   dict_content = {
                   'html_header_table' : html_table_header,

@@ -51,7 +51,7 @@ class Prophet:
       #print (dict_content)
       #string_html = string_template % dict_content
       string_html = string_template.format(**dict_content) #send in as kwargs
-      print ("parsed: ", len(string_html))
+      #print ("parsed: ", len(string_html))
       return string_html
 
   def enrich(self, df):
@@ -76,7 +76,6 @@ class Prophet:
         #df['Yield % Open 3'][counter] = 0
         continue
 
-      print ("counter:", counter)
       #get avg yield (amount and percent) for three previous days
       #print (counter-days, counter-1, df['Yield'][counter-days:counter-1].sum() / days)
       #df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
@@ -136,9 +135,8 @@ class Prophet:
       target_column3[counter] =  max(counters[target_column1[counter]], key=counters[target_column1[counter]].get)
       if target_column3[counter] == target_column2[counter]:
         df['Check'][counter] = 'OK'
-      # else:
-      #   df['Check'] = ''
 
+      #TODO: introduce predicted price column
 
 
 
