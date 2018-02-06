@@ -87,14 +87,23 @@ def load(ticker='FB', days=3):
 
   df = prophet.enrich(df)
   dict_tiers = prophet.set_tiers(df)
-  print ("after: ", dict_tiers)
+  print ("set tiers: ", dict_tiers)
 
-  column_name = 'Yield % Open'
-  key = 'hmm_symbol_%s' % column_name
-  df[key] = ''
-  column = prophet.set_hmm(column_name, key, df[column_name], df[key], dict_tiers[column_name])
-  print ("type: ", type(column))
-  df[key] = column
+  source_key = 'Yield % Open'
+  target_key1 = 'State'
+  df[target_key1] = ''
+  target_key2 = 'History'
+  df[target_key2] = ''
+
+  column1, column2 = prophet.set_hmm_state(df, source_key, target_key1, target_key2, dict_tiers[source_key])
+  df[target_key1] = column1
+  df[target_key2] = column2
+
+  #key = 'History'
+  #df[key] = ''
+  #column = prophet.set_hmm_history(df['State'], df['History'])
+  #df[key] = column
+
 
 
 #  chart_type = 'multiBarHorizontalData' #does not work

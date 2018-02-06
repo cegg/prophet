@@ -58,7 +58,7 @@ class Prophet:
 
     df['Spread']       = df['High'] - df['Low']
     df['Yield']        = df['Close'] - df['Open']
-    df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
+    #df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
     df['Yield % Open'] = df['Yield']
     #df['Yield % Open 3'] = df['Yield']
 
@@ -71,7 +71,7 @@ class Prophet:
 
     for counter, val in enumerate (df['Open']):
       if counter < days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
-        df['Yield Avg'][counter] = 0
+        #df['Yield Avg'][counter] = 0
         df['Yield % Open'][counter] = 0
         #df['Yield % Open 3'][counter] = 0
         continue
@@ -79,7 +79,7 @@ class Prophet:
       print ("counter:", counter)
       #get avg yield (amount and percent) for three previous days
       #print (counter-days, counter-1, df['Yield'][counter-days:counter-1].sum() / days)
-      df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
+      #df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
       df['Yield % Open'][counter]   = round (df['Yield'][counter] / df['Open'][counter]*100, 4)
       #this one below is not getting calculated correctly
       #df['Yield % Open 3'][counter] = round (df['Yield % Open'][counter-days:counter-1].sum() / days, 6)
@@ -90,7 +90,7 @@ class Prophet:
 
     return df
 
-  def set_tiers(self, df, column_names=('Yield Avg', 'Yield % Open')):
+  def set_tiers(self, df, column_names=('Yield % Open',)):
     """assigns values of numeric columns to one of 3 tiers: high, medium, low to generate HMM strings"""
     dict_tiers = {}
 
@@ -108,27 +108,36 @@ class Prophet:
         #print('column_name: ', column_name, 'min-max', dict_tiers[column_name]['min'], dict_tiers[column_name]['max'])
     return dict_tiers
 
-  def set_hmm(self, column_name, key, column_from, column_to, dict_tiers_column):
-
-    for counter, record in enumerate(column_from):
-      # if counter > 50:
+  def set_hmm_state(self, df, source_key, target_key1, target_key2, dict_tiers_source):
+    target_column1 = df[target_key1]
+    target_column2 = df[target_key2]
+    for counter, record in enumerate(df[source_key]):
+      # if counter > 50: #TODO REMOVE!!!
       #   break
-#      for day in range(1, self.days+1):
-      print ("record of counter :")
-      print (column_from[counter])
 
-      if (record < dict_tiers_column['tier_low_top']):
-        column_to[counter] = 'L' #low
-      elif (record < dict_tiers_column['tier_medium_top']):
-        column_to[counter] = 'M' #medium
-      else:
-        column_to[counter] = 'H' #high
+      target_column1[counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
+      if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
+        continue
+
+      target_column2[counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
+
+    return target_column1, target_column2
 
 
-      #column[key] = int(column[key])
+def set_days_state(day_range, dict_tiers_source):
+  day_states = []
+  for day_record in day_range:
+    if (day_record < dict_tiers_source['tier_low_top']):
+      day_state = 'L' #low
+    elif (day_record < dict_tiers_source['tier_medium_top']):
+      day_state = 'M' #medium
+    else:
+      day_state = 'H' #high
 
-      column_to[counter] = column_to[counter] + 'U' if (record > 0) else (column_to[counter] + 'D')
-    return column_to
+    day_state = '+' + day_state if (day_record > 0) else ('-' + day_state)
+    day_states.append(day_state)
+  return '|'.join(day_states)
+
 
 def generate_series_yield(df, counter, days):
   yield round (df['Yield'][counter-days:counter-1].sum() / days, 2)
