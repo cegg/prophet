@@ -108,20 +108,41 @@ class Prophet:
         #print('column_name: ', column_name, 'min-max', dict_tiers[column_name]['min'], dict_tiers[column_name]['max'])
     return dict_tiers
 
-  def set_hmm_state(self, df, source_key, target_key1, target_key2, dict_tiers_source):
+  def set_hmm_state(self, df, source_key, target_key1, target_key2, target_key3, dict_tiers_source):
     target_column1 = df[target_key1]
     target_column2 = df[target_key2]
+    target_column3 = df[target_key3]
+    counters = {}
     for counter, record in enumerate(df[source_key]):
       # if counter > 50: #TODO REMOVE!!!
       #   break
 
-      target_column1[counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
+
+      #State
+      target_column2[counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
       if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
         continue
 
-      target_column2[counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
+      #History
+      target_column1[counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
+      if target_column1[counter] not in counters: #maybe not pythonic, but try /except would have to do the same assignment
+        counters[target_column1[counter]] = {}
 
-    return target_column1, target_column2
+      if target_column1[counter] not in counters[target_column1[counter]]:
+        counters[target_column1[counter]][target_column2[counter]] = 0
+
+      counters[target_column1[counter]][target_column2[counter]] += 1
+      #pull out the most popular next entry for a given HMM
+      target_column3[counter] =  max(counters[target_column1[counter]], key=counters[target_column1[counter]].get)
+      if target_column3[counter] == target_column2[counter]:
+        df['Check'][counter] = 'OK'
+      # else:
+      #   df['Check'] = ''
+
+
+
+
+    return target_column1, target_column2, target_column3
 
 
 def set_days_state(day_range, dict_tiers_source):

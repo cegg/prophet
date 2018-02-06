@@ -36,12 +36,20 @@ def hello():
   return "flask works"
 
 #for version 1 just do not allow more than 10 days of historical data to be analyzed
-@app.route('/<regex("[a-zA-Z0-9]{2,5},\d+"):pars>/')
+@app.route('/<regex("[a-zA-Z0-9]{2,5},\d+,\d+"):pars>/')
 def setup(pars):
-  ticker, days = pars.split(',')
-  if int(days) > 10:
-    return "no more than 10 days of data can be ananyzed"
-  return load(ticker, int(days))
+  ticker, days, days_back = pars.split(',')
+  days = int(days)
+  days_back = int(days_back)
+  if days > 5:
+    return "No more than 5 days of history range for a given day can be analyzed"
+  if days_back > 500:
+    return "No more than 500 days of ticker history range can be analyzed"
+
+  if (days_back/days < 100):
+    return "Unrealistic ratio of ticker history range to record history range. Increase ticker history range or decrease record history range to be analyzed."
+
+  return load(ticker, days, days_back)
 
 #@app.route('/<regex("[abcABC0-9]{4,6}"):uid>-<slug>/')
 
@@ -51,7 +59,7 @@ def setup(pars):
 #     return "pars: %s, %s" % (ticker, days)
 
 @app.route("/") #default load
-def load(ticker='FB', days=3):
+def load(ticker='FB', days=3, days_back=365):
   """main table load"""
   prophet = Prophet(ticker, days)
 
@@ -62,14 +70,12 @@ def load(ticker='FB', days=3):
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
   #'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
   #The other way is to use ".reindex" on the output instead on date_range output
-  datelist = pd.bdate_range(end=pd.datetime.today(), periods=365 - 52*2 + days).tolist()
-
-  date_start = datelist[0]
-  date_end = datelist[-1]
+  days_active = days_back - 52*2 + days
+  datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
 
   #a call to a third-party API - needs to be checked
   try:
-    panel = data.DataReader([ticker], source, date_start, date_end)
+    panel = data.DataReader([ticker], source, datelist[0], datelist[-1])
   except:
     error  = "failed to get data from %s" % source
     prophet.log(error)
@@ -90,21 +96,20 @@ def load(ticker='FB', days=3):
   print ("set tiers: ", dict_tiers)
 
   source_key = 'Yield % Open'
-  target_key1 = 'State'
+
+  target_key1 = 'History'
   df[target_key1] = ''
-  target_key2 = 'History'
+
+  target_key2 = 'State'
   df[target_key2] = ''
 
-  column1, column2 = prophet.set_hmm_state(df, source_key, target_key1, target_key2, dict_tiers[source_key])
-  df[target_key1] = column1
-  df[target_key2] = column2
+  target_key3 = 'Prediction'
+  df[target_key3] = ''
 
-  #key = 'History'
-  #df[key] = ''
-  #column = prophet.set_hmm_history(df['State'], df['History'])
-  #df[key] = column
+  df['Check'] = ''
+  df[target_key1], df[target_key2], df[target_key3] = prophet.set_hmm_state(df, source_key, target_key1, target_key2, target_key3, dict_tiers[source_key])
 
-
+  success_count = "%s out of %s" % (df['Check'].value_counts()['OK'], days_active)
 
 #  chart_type = 'multiBarHorizontalData' #does not work
 #  chart = nvd3.multiBarHorizontalData(name=chart_type, height=500, width=500)
@@ -122,7 +127,8 @@ def load(ticker='FB', days=3):
 
   dict_table_header = { 'Ticker': [ticker],
                         'Days to Analyze': [days],
-                        'Browser Request': ['http://127.0.01.:5000/[<ticker>,<days>]']
+                        'Browser Request': ['http://127.0.01.:5000/[<ticker>,<days>]'],
+                        'Predicted': success_count
                       }
   df_table_header = pd.DataFrame.from_dict(dict_table_header)
   html_table_header = df_table_header.to_html()
