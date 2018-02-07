@@ -111,9 +111,13 @@ def load(ticker='FB', days=3, days_back=365):
   df['Up/Down Guess'] = ''
   df[target_key1], df[target_key2], df[target_key3] = prophet.set_hmm_state(df, source_key, target_key1, target_key2, target_key3, dict_tiers[source_key])
 
-  success_count = int(df['Check'].value_counts()['OK'])
-  percent = round(success_count * 100 / days_active, 2)
-  stats_message = "{0} out of {1} ({2}%)".format(success_count, days_active, percent)
+  success_count_tier = int(df['Check'].value_counts()['OK'])
+  percent = round(success_count_tier * 100 / days_active, 2)
+  stats_message_tier = "{0} out of {1} ({2}%)".format(success_count_tier, days_active, percent)
+
+  success_count_direction = int(df['Up/Down Guess'].value_counts()['OK'])
+  percent = round(success_count_direction * 100 / days_active, 2)
+  stats_message_direction = "{0} out of {1} ({2}%)".format(success_count_direction, days_active, percent)
 
 #  chart_type = 'multiBarHorizontalData' #does not work
 #  chart = nvd3.multiBarHorizontalData(name=chart_type, height=500, width=500)
@@ -132,7 +136,8 @@ def load(ticker='FB', days=3, days_back=365):
   dict_table_header = { 'Ticker': [ticker],
                         'Days to Analyze': [days],
                         'Browser Request Format': ['http://127.0.01.:5000/[<ticker>,<days>,<range>]'],
-                        'Predicted': stats_message
+                        'Tier Guessed': stats_message_tier,
+                        'Up/Down Guessed': stats_message_direction
                       }
   df_table_header = pd.DataFrame.from_dict(dict_table_header)
   #does not work
