@@ -1,9 +1,14 @@
-Facebook Stock Analyser
-  Gets data for the last 365 days and for each day predicts the stock priced based on the stats from the three previous days
+Stock Analyser by ticker, sample size and period
+  Gets data for the last <period> days and for each day predicts the stock priced based on the stats from the <analysis days range> previous days
+  Web version served with Flask
+  Default: http://127.0.01:5000/
+  With parameters: http://127.0.01:5000/<ticker symbol>,<days back to analyze>,<range days>
+  Example: http://127.0.01:5000/FB,3,300
+
 
 Getting Started
   unzip
-  cd FB
+  cd prophet
   pip3 install -t lib -r requirements.txt
   python3 main.py
 

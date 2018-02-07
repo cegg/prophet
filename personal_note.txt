@@ -1,0 +1,18 @@
+Hello Matteo and Niccolò.
+
+This was a fun project, and whtever the outcome I will spend more time on improving it later. 
+It took me somewhat longer than I expected, mostly because I changed the model couple of times while developing.
+All together it took abbout 15 hours.
+
+When I got the task, I considered 3 implementations:
+
+1. Arithmetic caluculations
+2. Mathematical extrapolation 
+3. HMM
+
+The first one seemed too simple, the second would require learning packages and techniques that I am not familiar with. 
+So I decided to try HMM - it's pure statistics after all, and I know about its applications to weather forcasts, stock market and genetic info processigin in bioinformati, and I know about its applications to weather forcasts, stock market and genetic info processing in bioinformatics.
+
+
+
+ 
