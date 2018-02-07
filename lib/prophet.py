@@ -136,6 +136,9 @@ class Prophet:
       if target_column3[counter] == target_column2[counter]:
         df['Check'][counter] = 'OK'
 
+      if target_column3[counter][0] == target_column2[counter][0]:
+        df['Up/Down Guess'][counter] = 'OK'
+
       #TODO: introduce predicted price column
 
 

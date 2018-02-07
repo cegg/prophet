@@ -89,7 +89,7 @@ def load(ticker='FB', days=3, days_back=365):
   #panel = panel.dropna(axis=1, how='any')
 
   # df = panel.to_frame()
-  df = panel[:,:,'FB'] # drop vertical minor axis, it's one ticker anyway
+  df = panel[:,:,ticker] # drop vertical minor axis, it's one ticker anyway
 
   df = prophet.enrich(df)
   dict_tiers = prophet.set_tiers(df)
@@ -107,6 +107,8 @@ def load(ticker='FB', days=3, days_back=365):
   df[target_key3] = ''
 
   df['Check'] = ''
+  #df['Predict Price'] = ''
+  df['Up/Down Guess'] = ''
   df[target_key1], df[target_key2], df[target_key3] = prophet.set_hmm_state(df, source_key, target_key1, target_key2, target_key3, dict_tiers[source_key])
 
   success_count = int(df['Check'].value_counts()['OK'])
