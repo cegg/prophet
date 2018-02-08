@@ -2,19 +2,26 @@ Hello Matteo and Niccolò.
 
 This was a fun project, and whatever the outcome I will spend more time on improving it later.
 It took me somewhat longer than I expected, mostly because I changed the prediction model
-couple of times while developing. All together I spent about 15-16 hours, plus some reading
-on the subject.
+couple of times while developing. All together I spent about 16 hours, plus some reading
+on the subject. Please if any questions, let me know, I suspect it's not very easy to
+understand the code.
 
 APPROACH:
 When I got the task, I considered 3 implementations:
 
 1. Calculations on the 3 previous days independent from the rest of the data
 2. Mathematical extrapolation
-3. Calculations on the whole range plus HMM-based statistical inference
+3. Calculations on the whole range using HMM-based statistical inference
 
 The first one seemed too simple, the second would require learning packages and techniques that I am not
-familiar with. So I decided to try the third one with HMM - it's pure statistics after all, and I knew a little about
-its applications to weather forecasts, stock market and genetic info processing in bioinformatics.
+familiar with. So I decided to try the third one with HMM - it's pure statistics after all, and I knew a
+little about its applications to weather forecasts, stock market and genetic info processing in bioinformatics.
+
+INTERFACE:
+There are 3 tables left, I removed several non-essential pieces of the interface.
+1. Request info table
+2. Results stats table
+3. Retrieved, calculated and predicted data details table - a row for each record
 
 IMPLEMENTATION:
 Turned out that yahoo is going through some modifications of their API, so I switched to google finance
@@ -25,29 +32,67 @@ it to the way I want my dataframe to be looking like. And after some experiments
 attempts to use D3 graphs for the main dataframe dataset - the nature of the findings did not require
 that type of graphical visualization.
 
-As of functionality, from the beginning I coded it so it can process data for any ticker, any (reasonable)
-range of analyzed backdata (suggested was 3 days) and any (reasonable again) time period (suggested was 365).
+From the beginning I coded it so it can process data for any ticker, any (reasonable)range
+of analyzed backdata (suggested was 3 days) and any (reasonable again) time period (suggested was 365).
 So besides the default call of http://127.0.0.1:5000 you can try things like
 http://127.0.0.1:5000/FB,5,500 or http://127.0.0.1:5000/GOOG,4,450 or whatever. If the numbers make no
 sense or get out of reasonable range, you will be informed in the browser. This way it's also easier for
 me to expand the package functionality for the future experiments.
 
-There are 3 predicted pieces: "Up/Down Guess" (price direction next day), "Prediction"
-(up/down guess plus exact price tier - low, medium, or high)", and "Price Guess" - calculated as "Close" .
-Well, really it's 2 because "Price Guess" is really just numeric representation of the guessed tier,
-but since it was in the task requireemnts I decided to include it.
-The division into 3 tiers (Hign, Medium, Low) is done like this:
+There are 3 predicted pieces for the next day:
 
+1. "Tier Guess" - check if the predicted price ended up in predicted tier
+   "no data" entries mean that this pattern never happened before or after so it does not influence
+   anything.
+
+2. "Up/Down Guess" - check if at least the predicted price is in the predicted direction (up or down)
+
+3.  "Price Guess" - middle of the tier for predicted price (to be compared with "Close" column).
+    Those looks surprisingly good, but I did not quantify their difference from "Close".
+    Maybe it's worth to add a column with abs("Price Guess"-"Close")% - please let me know
+
+Each HMM is a string with direction (+ or -) and tier char (L, M, H). For example for 3 days it can be '-H-M+L'.
+HMM patterns pointed to each actual historical next day record are counted, srted by frequency, and the most
+common are used for prediction - this is all in set_hmm_state method which calls set_guesses function
+on each record; after the whole frame is processed, it backpropagates findings to the records that did not
+have any data in the beginning.
 
 FINDINGS:
-Once done, I realized that the calls on substantial time periods (say, 600 instead of 365) take long time,
-so I had to profile the code to make it a bit faster. However, at the end the biggest part still seems to be
-the html page loading in the browser as I load all the data for all the dates in the requested range.
+Most of 'Tier Guess' percent values are arond 50%, so with bigger ratio of the range to the days to analyze
+it seems to imrove a bit. However the 'Up/Down Guess' is noticeably higher, over 60%.
+You can try and see the difference:
 
-The findings are quite surprising. Some hits yield numbers just above 50%.
-The default case of 3 days of data for 365 days (http://127.0.0.1:5000/FB,3,365) give 58% for the price tier
+http://127.0.0.1:5000/FB/3/450
+http://127.0.0.1:5000/FB/3/500
+http://127.0.0.1:5000/FB/3/550
+
+The findings are quite surprising. Most of predictions work
+The default case of 3 days of data for 365 days (http://127.0.0.1:5000/FB,3,365) give 62% for the price tier
 and 64% for price direction (up/down)%.
-http://127.0.0.1:5000/FB,5,500 gives 73.55% for the tier and 77% for the direction.
-http://127.0.0.1:5000/GOOG,5,500 gives 70% for the price in the tier and 74.38% for the price direction.
-Play with it.
+Please play with it, here are some examples:
+http://127.0.0.1:5000/FB,5,500
+http://127.0.0.1:5000/GOOG,5,500
+
+TODO:
+1. The single most important thing to improve is the performance. The dataframe processing code
+takes most of the time, up to 40 seconds on my MacBook Pro. I tried to replace copule of subs with
+generators but generators did not yield correctly pandas dataframe elements and constrcted some
+Series with basically garbage, and I did not have time to figure out what it's about. That I can
+spend some time on this coming weekend if it matters to you.
+
+2. Test. Normally I write a unit test at work I write unit test for each feature but there was
+so much refactoring in this project so I left it to the end and pretty much did not do any, just the
+placeholder t/prophetTest.py. Same comment here: this weekend I could add some if it still matters.
+
+3. Since most of the requested ranges overlap, there's a lot of room for to cache or pickle. Simply
+did not get to this.
+
+4. There are several more variable to add to the model, -
+ - account for Spread which I calculate but do not use
+ - assign weights on matching patterm frequencies, e.g. an HMM that confirmed 20 times should have higher
+   weight than that one of two
+- I tried to draw graphcs with D3 (there is a commented out experiment in main.py), it works.
+  But I did not decided what data I produce need to be represented that way, and now it's too late to think.
+
+
 

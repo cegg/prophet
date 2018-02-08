@@ -20,7 +20,8 @@ from pandas_datareader import data
 from prophet import Prophet
 import nvd3
 
-import timeit # for profiling
+#import timeit # for profiling
+import time # for milliseconds
 
 from werkzeug.routing import BaseConverter # that's for submitting ticker and days in the url
 class RegexConverter(BaseConverter):
@@ -65,11 +66,8 @@ def load(ticker='FB', days=3, days_back=365):
   """main table load"""
   prophet = Prophet(ticker, days)
 
-  import datetime
-
   source = 'google'
-  #date_end =  datetime.now() #also can be submitted in API call parameters...
-  #date_start = date_end - datetime.now()
+
 
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
   #e.g. 'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
@@ -84,9 +82,6 @@ def load(ticker='FB', days=3, days_back=365):
 
   datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
 
-  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
-                           '%d.%m.%Y %H:%M:%S,%f')
-  millisec1 = dt_obj.timestamp() * 1000
   #a call to a third-party API - needs to be checked
   try:
     panel = data.DataReader([ticker], source, datelist[0], datelist[-1])
@@ -94,39 +89,23 @@ def load(ticker='FB', days=3, days_back=365):
     error  = "failed to get data from %s" % source
     prophet.log(error)
     return error # just serve the error description in this case
-  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
-                           '%d.%m.%Y %H:%M:%S,%f')
-  millisec2 = dt_obj.timestamp() * 1000
-  print ('call:', millisec1, millisec2, millisec2-millisec1)
-
-  # experiment with just 'Close' call #TODO remove at the end if not needed
-  panel_close = panel.ix['Close']
-  close_table = panel_close.describe()
-  html_close_table = str(close_table.to_html())
-
-  #panel = panel.dropna(axis=1, how='any')
 
   # df = panel.to_frame()
   df = panel[:,:,ticker] # drop vertical minor axis, it's one ticker anyway
 
-  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
-                           '%d.%m.%Y %H:%M:%S,%f')
-  millisec1 = dt_obj.timestamp() * 1000
   df = prophet.enrich(df)
   dict_tiers = prophet.set_tiers(df)
-  #print ("set tiers: ", dict_tiers)
 
   source_key = 'Yield % Open'
 
-  target_key2 = 'Tier'
-  df[target_key2] = ''
-
+  # avoid type collisions
+  df['Tier'] = ''
   df['Up/Down Guess'] = ''
   df['Price Guess'] = ''
-  df[target_key2] = prophet.set_hmm_state(df, source_key,  target_key2, dict_tiers[source_key])
-  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
-                           '%d.%m.%Y %H:%M:%S,%f')
-  millisec2 = dt_obj.timestamp() * 1000
+
+  millisec1 = int(round(time.time() * 1000))
+  prophet.set_hmm_state(df, source_key, dict_tiers[source_key])
+  millisec2 = int(round(time.time() * 1000))
   print ('process:', millisec1, millisec2, millisec2-millisec1)
 
   count_match_ok = int(df['Match'].value_counts()['OK'])
@@ -138,30 +117,25 @@ def load(ticker='FB', days=3, days_back=365):
   percent = round(success_count_direction * 100 / (days_active-count_tier_guess_no_data), 2)
   stats_message_direction = "{0} out of {1} ({2}%)".format(success_count_direction, days_active-count_tier_guess_no_data, percent)
 
-#  chart_type = 'multiBarHorizontalData' #does not work
-#  chart = nvd3.multiBarHorizontalData(name=chart_type, height=500, width=500)
 
   #experiment with charts lib #TODO: remove at the end
-  chart_type = 'discreteBarChart'
-  chart = nvd3.discreteBarChart(name=chart_type, height=500, width=500)
-  ydata = [float(x) for x in np.random.randn(10)]
-  xdata = [int(x) for x in np.arange(10)]
-  chart.add_serie(y=ydata, x=xdata)
-  chart.buildhtml()
-  html_chart = chart.htmlcontent
+  # chart_type = 'discreteBarChart'
+  # chart = nvd3.discreteBarChart(name=chart_type, height=500, width=500)
+  # ydata = [float(x) for x in np.random.randn(10)]
+  # xdata = [int(x) for x in np.arange(10)]
+  # chart.add_serie(y=ydata, x=xdata)
+  # chart.buildhtml()
+  # html_chart = str(chart.htmlcontent)
 
+  # no display required for the analyzed date range itself (first <days> days) even if they got formatted to zeroes or something
+  df['Tier'][0:days] = ''
+  df['Yield'][0:days] = ''
+  df['Yield % Open'][0:days] = ''
 
-  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
-                           '%d.%m.%Y %H:%M:%S,%f')
-  millisec1 = dt_obj.timestamp() * 1000
-
+  #reorder
   df =df[['Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
   html_table_main = str(df.to_html())
   html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting ehre
-  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
-                           '%d.%m.%Y %H:%M:%S,%f')
-  millisec2 = dt_obj.timestamp() * 1000
-  print ('html:', millisec1, millisec2, millisec2-millisec1)
 
   column_name = 'Yield % Open'
   dict_table_request = { 'Ticker': [ticker],
@@ -187,8 +161,6 @@ def load(ticker='FB', days=3, days_back=365):
   dict_content = {
                   'html_table_request' : html_table_request,
                   'html_table_results' : html_table_results,
-                  'html_close_table'  : html_close_table,
-                  'html_chart'        : str(html_chart),
                   'html_table_main'       : html_table_main
   }
 

@@ -12,6 +12,8 @@ Getting Started
   pip3 install -t lib -r requirements.txt
   python3 main.py
 
+  github:
+
 Prerequisites
   all prerequisites are installed with pip3 step in "Geting Started" section (listed in requirements.txt)
 

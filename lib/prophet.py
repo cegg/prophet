@@ -42,6 +42,7 @@ class Prophet:
     return 0
 
   def parse_template(self, file_template, dict_content):
+    """get html template to feed the assigned data to"""
     if not os.path.exists(file_template):
       return "template file %s does not exist" % file_template
 
@@ -60,11 +61,9 @@ class Prophet:
 
     #TODO think how Spread can be added to the model
     # df['Spread']       = df['High'] - df['Low']
-
     #df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
 
     df['Yield % Open'] = df['Yield']
-
     days = self.days
 
     for counter, val in enumerate (df['Open']):
@@ -79,7 +78,6 @@ class Prophet:
       #print ("range: ", df['Yield % Open'][counter-days:counter-1], "sum:", df['Yield % Open'][counter-days:counter-1].sum(), "sum/3:", df['Yield % Open'][counter-days:counter-1].sum() / days)
       # if counter > 50: #debug #TODO!!! REMEMBER TO REMOVE!!!
       #   break
-
 
     return df
 
@@ -97,102 +95,107 @@ class Prophet:
         dict_tiers[column_name]['tier_low_top' ]   = round(dict_tiers[column_name]['min'] + dict_tiers[column_name]['one_third'], 4)
         dict_tiers[column_name]['tier_medium_top'] = round(dict_tiers[column_name]['min'] + dict_tiers[column_name]['one_third']*2, 4)
         dict_tiers[column_name]['tier_high_top']   = round(dict_tiers[column_name]['max'])
-
         dict_tiers[column_name]['tier_low_mean'] = round((dict_tiers[column_name]['tier_low_top'] - dict_tiers[column_name]['min'])/2, 2)
         dict_tiers[column_name]['tier_medium_mean'] = round((dict_tiers[column_name]['tier_medium_top'] - dict_tiers[column_name]['tier_low_top'])/2, 2)
         dict_tiers[column_name]['tier_high_mean'] = round((dict_tiers[column_name]['tier_high_top'] - dict_tiers[column_name]['tier_medium_top'])/2, 2)
-        print (dict_tiers[column_name]['tier_high_top'], dict_tiers[column_name]['tier_medium_top'], dict_tiers[column_name]['tier_high_mean'])
+        #print (dict_tiers[column_name]['tier_high_top'], dict_tiers[column_name]['tier_medium_top'], dict_tiers[column_name]['tier_high_mean'])
 
         #print('column_name: ', column_name, 'min-max', dict_tiers[column_name]['min'], dict_tiers[column_name]['max'])
     return dict_tiers
 
-  def set_hmm_state(self, df, source_key, target_key2, dict_tiers_source):
+  def set_hmm_state(self, df, source_key, dict_tiers_source):
+    """assign actual state from historicaldata (up/down and tier char) for the record, e,g, +M"""
     df['History'] = ''
     df['Tier Guess'] = ''
     df['Match'] = ''
-    target_column2 = df[target_key2]
     counters = {}
     for counter, record in enumerate(df[source_key]):
       # if counter > 50: #TODO REMOVE!!!
       #   break
 
-      #actual state (even tier0)
-      target_column2[counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
+      #actual state
+      df['Tier'][counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
 
       #History of <days> days
       df['History'][counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
       if df['History'][counter] not in counters: #maybe not pythonic, but it's not an exception, so no try /except
         counters[df['History'][counter]] = {}
 
-      if target_column2[counter] not in counters[df['History'][counter]]:
-        counters[df['History'][counter]][target_column2[counter]] = 0
+      if df['Tier'][counter] not in counters[df['History'][counter]]:
+        counters[df['History'][counter]][df['Tier'][counter]] = 0
 
       if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
         continue
 
-      counters[df['History'][counter]][target_column2[counter]] += 1 #keep track of frequency
-      #pull out the most popular next entry for a given HMM
-      #e.g. '-M|+M|-M': {'+M': 15, '-M': 11, '-L': 1} would return '+M'
-      #e.g. '+H|+H|+H': {'-L': 1} would return '-L' (basically, itself - the only occurences of the patern in the list)
-      #e.g. '-L|+H|-M': {'+M': 1, '-M': 1} - if curent record had +M, then returns the other one ( -M)
-      #e.g. '-L|+H|-M': {'+M': 1, '-M': 1, '+L': 1} - returns randomly selected out of all excluding current record pattern, i.e if current record is '+M' it's randomly selected from the other two
-      print ("\n<======", counters[df['History'][counter]], "======>")
-      list_counter_value = list(counters[df['History'][counter]].values())
-      print (list_counter_value)
-      if len(list_counter_value) == 0:
-        #nothing assigned so far, set default and keep looping
-        df['Tier Guess'][counter] = 'no data'
-        print ("CASE 1 no data so far, SKIPPING")
+      counters[df['History'][counter]][df['Tier'][counter]] += 1 #keep track of frequency
+      if not set_guesses(df, counters, counter, dict_tiers_source):
         continue
-      elif len(list_counter_value) == 1:
-        if list_counter_value[0] == 1:
-          #just one entry of 1, which means current record itself, should be ignored
-          df['Tier Guess'][counter] = 'no data'
-          print ("CASE 2 one entry, ==1, SKIPPING")
-          continue
-        else:
-          #good data but one entry, well, just use it
-          df['Tier Guess'][counter] = list(counters[df['History'][counter]].keys())[0] #in python3 needs to be 'list'ed because it's an object now
-          print ("CASE 3, one entry, good data, set to ", df['Tier Guess'][counter])
-      elif check_all_values_equal(list_counter_value): #more than one entry but all counters are equal
-        #if counters are higher than 1, take the most recent one, otherwise consider no data
-        if list_counter_value[0] == 1:
-          print ("CASE 4, more than one and all equal and ==1, choosing randomly from non-current: ", list_counter_value)
-          dict_temp = counters[df['History'][counter]].copy()
-          del dict_temp[target_column2[counter]]
-          df['Tier Guess'][counter] = random.choice(list(dict_temp.keys()))
-        else: #there is some inconclusive statistics here, let's select one randomly. That probably will break a lot of ties further down the loop
-          #TODO: maybe assign to the tier that is close the latest entry in the HMM instead?
-          df['Tier Guess'][counter] = random.choice(list(counters[df['History'][counter]].keys())) #call list on the returned object in python3
-          print ("CASE 5, more than one and all equal but greater than 1, choosing randomly from : ", list_counter_value, "vinner:", df['Tier Guess'][counter])
-      else:
-        #good, substantial data to make a decision
-        df['Tier Guess'][counter] =  max(counters[df['History'][counter]], key=counters[df['History'][counter]].get)
-        print ("CASE 6: winner: ", df['Tier Guess'][counter])
 
-      if df['Tier Guess'][counter] == target_column2[counter]:
-        df['Match'][counter] = 'OK'
-
-      if df['Tier Guess'][counter][0] == target_column2[counter][0]:
-        df['Up/Down Guess'][counter] = 'OK'
-
-      df['Price Guess'][counter] = df['Close'][counter-1]
-      if df['Tier Guess'][counter][-1] == 'L':
-        df['Price Guess'][counter] += dict_tiers_source['tier_low_mean']
-      elif df['Tier Guess'][counter][-1] == 'M':
-        df['Price Guess'][counter] += dict_tiers_source['tier_medium_mean']
-      elif df['Tier Guess'][counter][-1] == 'H':
-        df['Price Guess'][counter] += dict_tiers_source['tier_high_mean']
-
-    print (counters)
-    #repair earlier assignments that might accumulated some data later
+    #backpropagate later-set assumptions  - if we want to use all date range as one unit, i.e. not only chronologically sequencial assumptions
+    #can be commented out for the case of only causal chronology
     for counter, record in enumerate(df[source_key]):
-      print ("AFER:" , counter, "Tier Guess", df['Tier Guess'][counter], "counters: ", counters[df['History'][counter]])
+      if counter < self.days:
+        continue
+      if not set_guesses(df, counters, counter, dict_tiers_source):
+        continue
 
+    return
 
+def set_guesses(df, counters, counter, dict_tiers_source):
+  """set 'Tier Guess', 'Up/Down Guess', and 'Price Guess' columns"""
+  #pull out the most popular next entry for a given HMM
+  #e.g. '-M|+M|-M': {'+M': 15, '-M': 11, '-L': 1} would return '+M'
+  #e.g. '+H|+H|+H': {'-L': 1} would return return 'no data' - a single occurence, does nto influence anything besides itself
+  #e.g. '-L|+H|-M': {'+M': 1, '-M': 1} - if curent record had +M, then returns the other one ( -M)
+  #e.g. '-L|+H|-M': {'+M': 1, '-M': 1, '+L': 1} - returns randomly selected out of all excluding current record pattern, i.e if current record is '+M' it's randomly selected from the other two
+  #print ("\n<======", counters[df['History'][counter]], "======>")
+  list_counter_value = list(counters[df['History'][counter]].values())
 
-    return target_column2
+  if len(list_counter_value) == 0:
+    #nothing assigned so far, set default and keep looping
+    df['Tier Guess'][counter] = 'no data'
+    #print ("CASE 1 no data so far, SKIPPING")
+    return
+  elif len(list_counter_value) == 1:
+    if list_counter_value[0] == 1:
+      #just one entry of 1, which means current record itself, should be ignored
+      df['Tier Guess'][counter] = 'no data'
+      #print ("CASE 2 one entry, ==1, SKIPPING")
+      return
+    else:
+      #good data but one entry, well, just use it
+      df['Tier Guess'][counter] = list(counters[df['History'][counter]].keys())[0] #in python3 needs to be 'list'ed because it's an object now
+      #print ("CASE 3, one entry, good data, set to ", df['Tier Guess'][counter])
+  elif check_all_values_equal(list_counter_value): #more than one entry but all counters are equal
+    #if counters are higher than 1, take the most recent one, otherwise consider no data
+    if list_counter_value[0] == 1:
+      #print ("CASE 4, more than one and all equal and ==1, choosing randomly from non-current: ", list_counter_value)
+      dict_temp = counters[df['History'][counter]].copy()
+      del dict_temp[df['Tier'][counter]]
+      df['Tier Guess'][counter] = random.choice(list(dict_temp.keys()))
+    else: #there is some inconclusive statistics here, let's select one randomly. That probably will break a lot of ties further down the loop
+      #TODO: maybe assign to the tier that is close the latest entry in the HMM instead?
+      df['Tier Guess'][counter] = random.choice(list(counters[df['History'][counter]].keys())) #call list on the returned object in python3
+      #print ("CASE 5, more than one and all equal but greater than 1, choosing randomly from : ", list_counter_value, "vinner:", df['Tier Guess'][counter])
+  else:
+    #good, substantial data to make a decision
+    df['Tier Guess'][counter] =  max(counters[df['History'][counter]], key=counters[df['History'][counter]].get)
+    #print ("CASE 6: winner: ", df['Tier Guess'][counter])
 
+  if df['Tier Guess'][counter] == df['Tier'][counter]:
+    df['Match'][counter] = 'OK'
+
+  if df['Tier Guess'][counter][0] == df['Tier'][counter][0]:
+    df['Up/Down Guess'][counter] = 'OK'
+
+  df['Price Guess'][counter] = df['Close'][counter-1]
+  if df['Tier Guess'][counter][-1] == 'L':
+    df['Price Guess'][counter] += dict_tiers_source['tier_low_mean']
+  elif df['Tier Guess'][counter][-1] == 'M':
+    df['Price Guess'][counter] += dict_tiers_source['tier_medium_mean']
+  elif df['Tier Guess'][counter][-1] == 'H':
+    df['Price Guess'][counter] += dict_tiers_source['tier_high_mean']
+  return 1
 
 def set_days_state(day_range, dict_tiers_source):
   """ for each day  in the input define HMM symbol, e.g. +M (up medium) or -H (down high), and concatenate them into HMM.
@@ -212,39 +215,16 @@ def set_days_state(day_range, dict_tiers_source):
   return '|'.join(day_states)
 
 def check_all_values_equal(list_values):
-   return list_values[1:] == list_values[:-1]
+  """detect if all prediction tier HMM happened to have the same count"""
+  return list_values[1:] == list_values[:-1]
 
+
+# does not work - returns NaN no matter how the input data is formatted
 # def generate_new_column(func, column1, column2):
 #   """a generator for various calculations"""
-#   zz = []
-#   for counter, x in column1:
-#     print(x, y, type(x), type(y))
-#     z = func(x, y)
-#     zz.append(z)
-#     #yield float(z)
-#   return zz
+#   yield func(column1, column2)
 
+# def func_diff(x, y):
+#   return x-y
 
-
-def generate_new_column(func, column1, column2):
-  """a generator for various calculations"""
-  yield func(column1, column2)
-
-  # zz = []
-  # for x, y in zip(column1, column2):
-  #   print(x, y, type(x), type(y))
-  #   #z = func(x, y)
-  #   z = x-y
-  #   zz.append(z)
-  #   #yield float(z)
-  # return zz
-
-def func_diff(x, y):
-  return x-y
-  # #x = np.asscalar(x)
-  # #y = np.asscalar(y)
-  # print ("func: ", (x-y))
-  # return float(x-y)
-  # #return np.subtract(x,y)
-  # #return (x-y)
 
