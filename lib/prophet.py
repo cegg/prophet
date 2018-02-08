@@ -96,9 +96,10 @@ class Prophet:
         dict_tiers[column_name]['tier_medium_top'] = round(dict_tiers[column_name]['min'] + dict_tiers[column_name]['one_third']*2, 4)
         dict_tiers[column_name]['tier_high_top']   = round(dict_tiers[column_name]['max'])
 
-        dict_tiers[column_name]['tier_low_mean'] = round(dict_tiers[column_name]['tier_low_top'] - dict_tiers[column_name]['min']/2, 2)
-        dict_tiers[column_name]['tier_medium_mean'] = round(dict_tiers[column_name]['tier_medium_top'] - dict_tiers[column_name]['tier_low_top']/2, 2)
-        dict_tiers[column_name]['tier_high_mean'] = round(dict_tiers[column_name]['tier_high_top'] - dict_tiers[column_name]['tier_medium_top']/2, 2)
+        dict_tiers[column_name]['tier_low_mean'] = round((dict_tiers[column_name]['tier_low_top'] - dict_tiers[column_name]['min'])/2, 2)
+        dict_tiers[column_name]['tier_medium_mean'] = round((dict_tiers[column_name]['tier_medium_top'] - dict_tiers[column_name]['tier_low_top'])/2, 2)
+        dict_tiers[column_name]['tier_high_mean'] = round((dict_tiers[column_name]['tier_high_top'] - dict_tiers[column_name]['tier_medium_top'])/2, 2)
+        print (dict_tiers[column_name]['tier_high_top'], dict_tiers[column_name]['tier_medium_top'], dict_tiers[column_name]['tier_high_mean'])
 
         #print('column_name: ', column_name, 'min-max', dict_tiers[column_name]['min'], dict_tiers[column_name]['max'])
     return dict_tiers
@@ -143,6 +144,7 @@ class Prophet:
       elif target_column3[counter][-1] == 'H':
         df['Price Guess'][counter] += dict_tiers_source['tier_high_mean']
 
+    return
     return target_column1, target_column2, target_column3
 
 

@@ -20,6 +20,8 @@ from pandas_datareader import data
 from prophet import Prophet
 import nvd3
 
+import timeit # for profiling
+
 from werkzeug.routing import BaseConverter # that's for submitting ticker and days in the url
 class RegexConverter(BaseConverter):
   def __init__(self, url_map, *items):
@@ -63,6 +65,8 @@ def load(ticker='FB', days=3, days_back=365):
   """main table load"""
   prophet = Prophet(ticker, days)
 
+  import datetime
+
   source = 'google'
   #date_end =  datetime.now() #also can be submitted in API call parameters...
   #date_start = date_end - datetime.now()
@@ -80,6 +84,10 @@ def load(ticker='FB', days=3, days_back=365):
 
   datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
 
+
+  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
+                           '%d.%m.%Y %H:%M:%S,%f')
+  millisec1 = dt_obj.timestamp() * 1000
   #a call to a third-party API - needs to be checked
   try:
     panel = data.DataReader([ticker], source, datelist[0], datelist[-1])
@@ -87,7 +95,10 @@ def load(ticker='FB', days=3, days_back=365):
     error  = "failed to get data from %s" % source
     prophet.log(error)
     return error # just serve the error description in this case
-
+  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
+                           '%d.%m.%Y %H:%M:%S,%f')
+  millisec2 = dt_obj.timestamp() * 1000
+  print ('call:', millisec1, millisec2, millisec2-millisec1)
 
   # experiment with just 'Close' call #TODO remove at the end if not needed
   panel_close = panel.ix['Close']
@@ -99,6 +110,9 @@ def load(ticker='FB', days=3, days_back=365):
   # df = panel.to_frame()
   df = panel[:,:,ticker] # drop vertical minor axis, it's one ticker anyway
 
+  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
+                           '%d.%m.%Y %H:%M:%S,%f')
+  millisec1 = dt_obj.timestamp() * 1000
   df = prophet.enrich(df)
   dict_tiers = prophet.set_tiers(df)
   #print ("set tiers: ", dict_tiers)
@@ -119,6 +133,10 @@ def load(ticker='FB', days=3, days_back=365):
   df['Up/Down Guess'] = ''
   df['Price Guess'] = ''
   df[target_key1], df[target_key2], df[target_key3] = prophet.set_hmm_state(df, source_key, target_key1, target_key2, target_key3, dict_tiers[source_key])
+  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
+                           '%d.%m.%Y %H:%M:%S,%f')
+  millisec2 = dt_obj.timestamp() * 1000
+  print ('process:', millisec1, millisec2, millisec2-millisec1)
 
   success_count_tier = int(df['Check'].value_counts()['OK'])
   percent = round(success_count_tier * 100 / days_active, 2)
@@ -140,7 +158,15 @@ def load(ticker='FB', days=3, days_back=365):
   chart.buildhtml()
   html_chart = chart.htmlcontent
 
-  html_panel = str(df.to_html())
+
+  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
+                           '%d.%m.%Y %H:%M:%S,%f')
+  millisec1 = dt_obj.timestamp() * 1000
+  html_table_main = str(df.to_html())
+  dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
+                           '%d.%m.%Y %H:%M:%S,%f')
+  millisec2 = dt_obj.timestamp() * 1000
+  print ('html:', millisec1, millisec2, millisec2-millisec1)
 
   column_name = 'Yield % Open'
   dict_table_request = { 'Ticker': [ticker],
@@ -153,15 +179,14 @@ def load(ticker='FB', days=3, days_back=365):
   df_table_request = pd.DataFrame.from_dict(dict_table_request)
   #reorder
   df_table_request = df_table_request[['Browser Request Format', 'Ticker', 'Days to Analyze', 'Tier Low (L)', 'Tier Medium (M)', 'Tier High (H)']]
-
   #does not work
-  #df_table_header.drop(df_table_header.columns[1], axis=1) #bogus empty column
+  #df_table_header.drop(df_table_header.columns[1], axis=1) #drop bogus empty column with "0"
   html_table_request = df_table_request.to_html()
+
   dict_table_results = {
                         'Tier Guessed': [stats_message_tier],
                         'Up/Down Guessed': [stats_message_direction]
                       }
-
   df_table_results = pd.DataFrame.from_dict(dict_table_results)
   html_table_results = df_table_results.to_html()
   dict_content = {
@@ -169,7 +194,7 @@ def load(ticker='FB', days=3, days_back=365):
                   'html_table_results' : html_table_results,
                   'html_close_table'  : html_close_table,
                   'html_chart'        : str(html_chart),
-                  'html_panel'       : html_panel
+                  'html_table_main'       : html_table_main
   }
 
   return prophet.parse_template("%s/main.html" % prophet.config.get(prophet.env, 'templates'), dict_content)
