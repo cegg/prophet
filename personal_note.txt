@@ -1,45 +1,53 @@
 Hello Matteo and Niccolò.
 
-This was a fun project, and whtever the outcome I will spend more time on improving it later. 
-It took me somewhat longer than I expected, mostly because I changed the model couple of times while developing.
-All together I spent about 16 hours, including some reading on the subject and refreshing pandas.
+This was a fun project, and whatever the outcome I will spend more time on improving it later.
+It took me somewhat longer than I expected, mostly because I changed the prediction model
+couple of times while developing. All together I spent about 15-16 hours, plus some reading
+on the subject.
 
+APPROACH:
 When I got the task, I considered 3 implementations:
 
-1. Arithmetic caluculations
-2. Mathematical extrapolation 
-3. HMM
+1. Calculations on the 3 previous days independent from the rest of the data
+2. Mathematical extrapolation
+3. Calculations on the whole range plus HMM-based statistical inference
 
-The first one seemed too simple, the second would require learning packages and techniques that I am not familiar with. 
-So I decided to try HMM - it's pure statistics after all, and I know about its applications to weather forecasts, 
-stock market and genetic info processing in bioinformatics.
+The first one seemed too simple, the second would require learning packages and techniques that I am not
+familiar with. So I decided to try HMM - it's pure statistics after all, and I knew a little about
+its applications to weather forecasts, stock market and genetic info processing in bioinformatics.
 
+IMPLEMENTATION:
 Turned out that yahoo is going through some modifications of their API, so I switched to google finance
 for getting the data - hope it's not important.
 
-I did not concentrate on the look-and-feel, just took an exisitng cross-table css and tweaked 
-it to the way I want my dataframe to be looking like. And after some experiments dropped all 
-attempts to use D3 graphs for the main dataframe dataset - the nature of the findings did not require 
+I did not concentrate on the look-and-feel, just took an exisitng cross-table css and tweaked
+it to the way I want my dataframe to be looking like. And after some experiments dropped all
+attempts to use D3 graphs for the main dataframe dataset - the nature of the findings did not require
 that type of graphical visualization.
 
-As of functionality, from the beginning I coded it so it can process data for any ticker, any (reasonable) range of 
-analyzed backdata (suggested was 3 days) and any (reasonable again) time period (suggested was 365).
-So besides the default call of http://127.0.0.1:5000 you can try things like 
-http://127.0.0.1:5000/FB,5,500 or http://127.0.0.1:5000/GOOG,4,450 or whatever. If the numbers make no sense or get 
-out of reasonable range, you will be informed in the browser. This way it's also easier for me to expand the package
-functionality for the future experiments.
+As of functionality, from the beginning I coded it so it can process data for any ticker, any (reasonable)
+range of analyzed backdata (suggested was 3 days) and any (reasonable again) time period (suggested was 365).
+So besides the default call of http://127.0.0.1:5000 you can try things like
+http://127.0.0.1:5000/FB,5,500 or http://127.0.0.1:5000/GOOG,4,450 or whatever. If the numbers make no
+sense or get out of reasonable range, you will be informed in the browser. This way it's also easier for
+me to expand the package functionality for the future experiments.
 
-There are 3 predicted pieces: "Up/Down Guess", "Up/Down Guess with the Tier Guess", and predicted price.
-Well, really it's 2 because "Predicted Price" is really just numeric representation of the guessed tier,
-but since it was in the task requireemnts I decided to include it. 
-The division into 3 tiers (Hign, Medium, Low) is done like this: 
- 
-Once done, I realized that the calls on substantial time periods (say, 600 instead of 365) take long time, 
-so I had to profile the code and make some of it faster. However, the API call to google itself takes time in 
-proportion of the requested time range, not much I can do about that part.
+There are 3 predicted pieces: "Up/Down Guess" (price direction next day), "Prediction"
+(up/down guess plus exact price tier - low, medium, or high)", and "Price Guess" - calculated as "Close" of the day b.
+Well, really it's 2 because "Price Guess" is really just numeric representation of the guessed tier,
+but since it was in the task requireemnts I decided to include it.
+The division into 3 tiers (Hign, Medium, Low) is done like this:
 
-The findings are quite surprising. A lot of hits yield numbers around 50%, mny even lower (as low as 40%)
-for some combinations of the input data, but there seems to be an island of better-then-average predictions
-for HMM length of 5 and time period of 500 days. E. g. ticker FB on that gets 63% "Up/Down with Tier" and
-even higher on just "Up/Down". It might be a selection bias, (basically, it's Oct 2016-Jan 2018). Reducing 
-length to 4 or increasing time period to 600 days makes it something around 55%.  
+
+FINDINGS:
+Once done, I realized that the calls on substantial time periods (say, 600 instead of 365) take long time,
+so I had to profile the code to make it a bit faster. However, at the end the biggest part still seems to be
+the html page loading in the browser as I load all the data for all the dates in the requested range.
+
+The findings are quite surprising. Some hits yield numbers just above 50%.
+The default case of 3 days of data for 365 days (http://127.0.0.1:5000/FB,3,365) give 58% for the price tier
+and 64% for price direction (up/down)%.
+http://127.0.0.1:5000/FB,5,500 gives 73.55% for the tier and 77% for the direction.
+http://127.0.0.1:5000/GOOG,5,500 gives 70% for the price in the tier and 74.38% for the price direction.
+Play with it.
+

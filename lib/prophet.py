@@ -91,6 +91,7 @@ class Prophet:
         dict_tiers[column_name] = {}
         dict_tiers[column_name]['min'] = df[column_name].min() #assign these two once per column_name
         dict_tiers[column_name]['max'] = df[column_name].max()
+        #TODO: try on <days> range instead of the whole column
         dict_tiers[column_name]['one_third'] = (dict_tiers[column_name]['max'] - dict_tiers[column_name]['min'])/3
         dict_tiers[column_name]['tier_low_top' ]   = round(dict_tiers[column_name]['min'] + dict_tiers[column_name]['one_third'], 4)
         dict_tiers[column_name]['tier_medium_top'] = round(dict_tiers[column_name]['min'] + dict_tiers[column_name]['one_third']*2, 4)
@@ -104,48 +105,47 @@ class Prophet:
         #print('column_name: ', column_name, 'min-max', dict_tiers[column_name]['min'], dict_tiers[column_name]['max'])
     return dict_tiers
 
-  def set_hmm_state(self, df, source_key, target_key1, target_key2, target_key3, dict_tiers_source):
-    target_column1 = df[target_key1]
+  def set_hmm_state(self, df, source_key, target_key2, dict_tiers_source):
+    df['History'] = ''
+    df['Tier Guess'] = ''
+    df['Match'] = ''
     target_column2 = df[target_key2]
-    target_column3 = df[target_key3]
     counters = {}
     for counter, record in enumerate(df[source_key]):
       # if counter > 50: #TODO REMOVE!!!
       #   break
 
-      #State
+      #actual state (even tier0)
       target_column2[counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
       if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
         continue
 
-      #History
-      target_column1[counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
-      if target_column1[counter] not in counters: #maybe not pythonic, but try /except would have to do the same assignment
-        counters[target_column1[counter]] = {}
+      #History of <days> days
+      df['History'][counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
+      if df['History'][counter] not in counters: #maybe not pythonic, it's not an exception, so no try /except
+        counters[df['History'][counter]] = {}
 
-      if target_column2[counter] not in counters[target_column1[counter]]:
-        counters[target_column1[counter]][target_column2[counter]] = 0
+      if target_column2[counter] not in counters[df['History'][counter]]:
+        counters[df['History'][counter]][target_column2[counter]] = 0
 
-      counters[target_column1[counter]][target_column2[counter]] += 1
+      counters[df['History'][counter]][target_column2[counter]] += 1 #keep track of frequency
       #pull out the most popular next entry for a given HMM
-      target_column3[counter] =  max(counters[target_column1[counter]], key=counters[target_column1[counter]].get)
-      if target_column3[counter] == target_column2[counter]:
-        df['Check'][counter] = 'OK'
+      df['Tier Guess'][counter] =  max(counters[df['History'][counter]], key=counters[df['History'][counter]].get)
+      if df['Tier Guess'][counter] == target_column2[counter]:
+        df['Match'][counter] = 'OK'
 
-      if target_column3[counter][0] == target_column2[counter][0]:
+      if df['Tier Guess'][counter][0] == target_column2[counter][0]:
         df['Up/Down Guess'][counter] = 'OK'
 
-      #TODO: this does not seem to be calculated right
-      df['Price Guess'][counter] = df['Close'][counter]
-      if target_column3[counter][-1] == 'L':
+      df['Price Guess'][counter] = df['Close'][counter-1]
+      if df['Tier Guess'][counter][-1] == 'L':
         df['Price Guess'][counter] += dict_tiers_source['tier_low_mean']
-      elif target_column3[counter][-1] == 'M':
+      elif df['Tier Guess'][counter][-1] == 'M':
         df['Price Guess'][counter] += dict_tiers_source['tier_medium_mean']
-      elif target_column3[counter][-1] == 'H':
+      elif df['Tier Guess'][counter][-1] == 'H':
         df['Price Guess'][counter] += dict_tiers_source['tier_high_mean']
 
-    return
-    return target_column1, target_column2, target_column3
+    return target_column2
 
 
 def set_days_state(day_range, dict_tiers_source):

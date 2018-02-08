@@ -72,9 +72,9 @@ def load(ticker='FB', days=3, days_back=365):
   #date_start = date_end - datetime.now()
 
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
-  #'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
+  #e.g. 'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
   #The other way is to use ".reindex" on the output instead on date_range output
-  weeks = days_back // 7
+  weeks = days_back // 7 #integer number of weeks in the requested range
   days_active = days_back - weeks*2 + days
   #user input makes no sense. should not hapen at this point but it's better be safe
   if days_active < 3:
@@ -119,26 +119,18 @@ def load(ticker='FB', days=3, days_back=365):
 
   source_key = 'Yield % Open'
 
-  target_key1 = 'History'
-  df[target_key1] = ''
-
-  target_key2 = 'State'
+  target_key2 = 'Tier'
   df[target_key2] = ''
 
-  target_key3 = 'Prediction'
-  df[target_key3] = ''
-
-  df['Check'] = ''
-  #df['Predict Price'] = ''
   df['Up/Down Guess'] = ''
   df['Price Guess'] = ''
-  df[target_key1], df[target_key2], df[target_key3] = prophet.set_hmm_state(df, source_key, target_key1, target_key2, target_key3, dict_tiers[source_key])
+  df[target_key2] = prophet.set_hmm_state(df, source_key,  target_key2, dict_tiers[source_key])
   dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
                            '%d.%m.%Y %H:%M:%S,%f')
   millisec2 = dt_obj.timestamp() * 1000
   print ('process:', millisec1, millisec2, millisec2-millisec1)
 
-  success_count_tier = int(df['Check'].value_counts()['OK'])
+  success_count_tier = int(df['Match'].value_counts()['OK'])
   percent = round(success_count_tier * 100 / days_active, 2)
   stats_message_tier = "{0} out of {1} ({2}%)".format(success_count_tier, days_active, percent)
 
@@ -162,7 +154,10 @@ def load(ticker='FB', days=3, days_back=365):
   dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
                            '%d.%m.%Y %H:%M:%S,%f')
   millisec1 = dt_obj.timestamp() * 1000
+
+  df =df[['Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
   html_table_main = str(df.to_html())
+  html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting ehre
   dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
                            '%d.%m.%Y %H:%M:%S,%f')
   millisec2 = dt_obj.timestamp() * 1000
