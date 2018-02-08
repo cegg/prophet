@@ -70,7 +70,14 @@ def load(ticker='FB', days=3, days_back=365):
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
   #'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
   #The other way is to use ".reindex" on the output instead on date_range output
-  days_active = days_back - 52*2 + days
+  weeks = days_back // 7
+  days_active = days_back - weeks*2 + days
+  #user input makes no sense. should not hapen at this point but it's better be safe
+  if days_active < 3:
+    error = "User requested invalid date range"
+    prophet.log(error)
+    return error
+
   datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
 
   #a call to a third-party API - needs to be checked
@@ -80,6 +87,7 @@ def load(ticker='FB', days=3, days_back=365):
     error  = "failed to get data from %s" % source
     prophet.log(error)
     return error # just serve the error description in this case
+
 
   # experiment with just 'Close' call #TODO remove at the end if not needed
   panel_close = panel.ix['Close']
@@ -109,6 +117,7 @@ def load(ticker='FB', days=3, days_back=365):
   df['Check'] = ''
   #df['Predict Price'] = ''
   df['Up/Down Guess'] = ''
+  df['Price Guess'] = ''
   df[target_key1], df[target_key2], df[target_key3] = prophet.set_hmm_state(df, source_key, target_key1, target_key2, target_key3, dict_tiers[source_key])
 
   success_count_tier = int(df['Check'].value_counts()['OK'])
@@ -133,20 +142,31 @@ def load(ticker='FB', days=3, days_back=365):
 
   html_panel = str(df.to_html())
 
-  dict_table_header = { 'Ticker': [ticker],
+  column_name = 'Yield % Open'
+  dict_table_request = { 'Ticker': [ticker],
                         'Days to Analyze': [days],
                         'Browser Request Format': ['http://127.0.01.:5000/[<ticker>,<days>,<range>]'],
-                        'Tier Guessed': stats_message_tier,
-                        'Up/Down Guessed': stats_message_direction
+                        'Tier Low (L)': ["%s : %s" % (dict_tiers[column_name]['min'], dict_tiers[column_name]['tier_low_top'])],
+                        'Tier Medium (M)': ["%s : %s" % (dict_tiers[column_name]['tier_low_top' ], dict_tiers[column_name]['tier_medium_top'])],
+                        'Tier High (H)': ["%s : %s" % (dict_tiers[column_name]['tier_medium_top' ], dict_tiers[column_name]['max'])]
                       }
-  df_table_header = pd.DataFrame.from_dict(dict_table_header)
+  df_table_request = pd.DataFrame.from_dict(dict_table_request)
+  #reorder
+  df_table_request = df_table_request[['Browser Request Format', 'Ticker', 'Days to Analyze', 'Tier Low (L)', 'Tier Medium (M)', 'Tier High (H)']]
+
   #does not work
   #df_table_header.drop(df_table_header.columns[1], axis=1) #bogus empty column
-  html_table_header = df_table_header.to_html()
+  html_table_request = df_table_request.to_html()
+  dict_table_results = {
+                        'Tier Guessed': [stats_message_tier],
+                        'Up/Down Guessed': [stats_message_direction]
+                      }
 
-
+  df_table_results = pd.DataFrame.from_dict(dict_table_results)
+  html_table_results = df_table_results.to_html()
   dict_content = {
-                  'html_header_table' : html_table_header,
+                  'html_table_request' : html_table_request,
+                  'html_table_results' : html_table_results,
                   'html_close_table'  : html_close_table,
                   'html_chart'        : str(html_chart),
                   'html_panel'       : html_panel
