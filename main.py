@@ -84,7 +84,6 @@ def load(ticker='FB', days=3, days_back=365):
 
   datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
 
-
   dt_obj = datetime.datetime.strptime('20.12.2016 09:38:42,76',
                            '%d.%m.%Y %H:%M:%S,%f')
   millisec1 = dt_obj.timestamp() * 1000
@@ -130,13 +129,14 @@ def load(ticker='FB', days=3, days_back=365):
   millisec2 = dt_obj.timestamp() * 1000
   print ('process:', millisec1, millisec2, millisec2-millisec1)
 
-  success_count_tier = int(df['Match'].value_counts()['OK'])
-  percent = round(success_count_tier * 100 / days_active, 2)
-  stats_message_tier = "{0} out of {1} ({2}%)".format(success_count_tier, days_active, percent)
+  count_match_ok = int(df['Match'].value_counts()['OK'])
+  count_tier_guess_no_data = int(df['Tier Guess'].value_counts()['no data'])
+  percent = round(count_match_ok * 100 / days_active, 2)
+  stats_message_tier = "{0} out of {1} ({2}%)".format(count_match_ok, days_active, percent)
 
   success_count_direction = int(df['Up/Down Guess'].value_counts()['OK'])
-  percent = round(success_count_direction * 100 / days_active, 2)
-  stats_message_direction = "{0} out of {1} ({2}%)".format(success_count_direction, days_active, percent)
+  percent = round(success_count_direction * 100 / (days_active-count_tier_guess_no_data), 2)
+  stats_message_direction = "{0} out of {1} ({2}%)".format(success_count_direction, days_active-count_tier_guess_no_data, percent)
 
 #  chart_type = 'multiBarHorizontalData' #does not work
 #  chart = nvd3.multiBarHorizontalData(name=chart_type, height=500, width=500)

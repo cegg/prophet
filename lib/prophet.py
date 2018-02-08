@@ -5,6 +5,7 @@ import pandas as pd
 import os, sys, inspect
 import configparser #for .ini file
 from datetime import datetime
+import random
 
 class Prophet:
   def __init__(self, ticker, days, inifile='./conf/prophet.ini', env='default', debug=5, logfile='log/prophet.log'):
@@ -117,20 +118,58 @@ class Prophet:
 
       #actual state (even tier0)
       target_column2[counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
-      if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
-        continue
 
       #History of <days> days
       df['History'][counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
-      if df['History'][counter] not in counters: #maybe not pythonic, it's not an exception, so no try /except
+      if df['History'][counter] not in counters: #maybe not pythonic, but it's not an exception, so no try /except
         counters[df['History'][counter]] = {}
 
       if target_column2[counter] not in counters[df['History'][counter]]:
         counters[df['History'][counter]][target_column2[counter]] = 0
 
+      if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
+        continue
+
       counters[df['History'][counter]][target_column2[counter]] += 1 #keep track of frequency
       #pull out the most popular next entry for a given HMM
-      df['Tier Guess'][counter] =  max(counters[df['History'][counter]], key=counters[df['History'][counter]].get)
+      #e.g. '-M|+M|-M': {'+M': 15, '-M': 11, '-L': 1} would return '+M'
+      #e.g. '+H|+H|+H': {'-L': 1} would return '-L' (basically, itself - the only occurences of the patern in the list)
+      #e.g. '-L|+H|-M': {'+M': 1, '-M': 1} - if curent record had +M, then returns the other one ( -M)
+      #e.g. '-L|+H|-M': {'+M': 1, '-M': 1, '+L': 1} - returns randomly selected out of all excluding current record pattern, i.e if current record is '+M' it's randomly selected from the other two
+      print ("\n<======", counters[df['History'][counter]], "======>")
+      list_counter_value = list(counters[df['History'][counter]].values())
+      print (list_counter_value)
+      if len(list_counter_value) == 0:
+        #nothing assigned so far, set default and keep looping
+        df['Tier Guess'][counter] = 'no data'
+        print ("CASE 1 no data so far, SKIPPING")
+        continue
+      elif len(list_counter_value) == 1:
+        if list_counter_value[0] == 1:
+          #just one entry of 1, which means current record itself, should be ignored
+          df['Tier Guess'][counter] = 'no data'
+          print ("CASE 2 one entry, ==1, SKIPPING")
+          continue
+        else:
+          #good data but one entry, well, just use it
+          df['Tier Guess'][counter] = list(counters[df['History'][counter]].keys())[0] #in python3 needs to be 'list'ed because it's an object now
+          print ("CASE 3, one entry, good data, set to ", df['Tier Guess'][counter])
+      elif check_all_values_equal(list_counter_value): #more than one entry but all counters are equal
+        #if counters are higher than 1, take the most recent one, otherwise consider no data
+        if list_counter_value[0] == 1:
+          print ("CASE 4, more than one and all equal and ==1, choosing randomly from non-current: ", list_counter_value)
+          dict_temp = counters[df['History'][counter]].copy()
+          del dict_temp[target_column2[counter]]
+          df['Tier Guess'][counter] = random.choice(list(dict_temp.keys()))
+        else: #there is some inconclusive statistics here, let's select one randomly. That probably will break a lot of ties further down the loop
+          #TODO: maybe assign to the tier that is close the latest entry in the HMM instead?
+          df['Tier Guess'][counter] = random.choice(list(counters[df['History'][counter]].keys())) #call list on the returned object in python3
+          print ("CASE 5, more than one and all equal but greater than 1, choosing randomly from : ", list_counter_value, "vinner:", df['Tier Guess'][counter])
+      else:
+        #good, substantial data to make a decision
+        df['Tier Guess'][counter] =  max(counters[df['History'][counter]], key=counters[df['History'][counter]].get)
+        print ("CASE 6: winner: ", df['Tier Guess'][counter])
+
       if df['Tier Guess'][counter] == target_column2[counter]:
         df['Match'][counter] = 'OK'
 
@@ -144,6 +183,13 @@ class Prophet:
         df['Price Guess'][counter] += dict_tiers_source['tier_medium_mean']
       elif df['Tier Guess'][counter][-1] == 'H':
         df['Price Guess'][counter] += dict_tiers_source['tier_high_mean']
+
+    print (counters)
+    #repair earlier assignments that might accumulated some data later
+    for counter, record in enumerate(df[source_key]):
+      print ("AFER:" , counter, "Tier Guess", df['Tier Guess'][counter], "counters: ", counters[df['History'][counter]])
+
+
 
     return target_column2
 
@@ -164,6 +210,9 @@ def set_days_state(day_range, dict_tiers_source):
     day_state = '+' + day_state if (day_record > 0) else ('-' + day_state)
     day_states.append(day_state)
   return '|'.join(day_states)
+
+def check_all_values_equal(list_values):
+   return list_values[1:] == list_values[:-1]
 
 # def generate_new_column(func, column1, column2):
 #   """a generator for various calculations"""
