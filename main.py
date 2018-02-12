@@ -111,12 +111,11 @@ def load(ticker='FB', days=3, days_back=365):
   count_match_ok = int(df['Match'].value_counts()['OK'])
   count_tier_guess_no_data = int(df['Tier Guess'].value_counts()['no data'])
   percent = round(count_match_ok * 100 / days_active, 2)
-  stats_message_tier = "{0} out of {1} ({2}%)".format(count_match_ok, days_active-count_tier_guess_no_data, percent)
+  stats_message_tier = "{0} ({1}%)".format(count_match_ok, percent)
 
   success_count_direction = int(df['Up/Down Guess'].value_counts()['OK'])
   percent = round(success_count_direction * 100 / (days_active-count_tier_guess_no_data), 2)
-  stats_message_direction = "{0} out of {1} ({2}%)".format(success_count_direction, days_active-count_tier_guess_no_data, percent)
-
+  stats_message_direction = "{0} ({1}%)".format(success_count_direction, percent)
 
   #experiment with charts lib #TODO: remove at the end
   # chart_type = 'discreteBarChart'
@@ -153,6 +152,7 @@ def load(ticker='FB', days=3, days_back=365):
   html_table_request = df_table_request.to_html()
 
   dict_table_results = {
+                        'Days Active': [days_active-count_tier_guess_no_data],
                         'Tier Guessed': [stats_message_tier],
                         'Up/Down Guessed': [stats_message_direction]
                       }
