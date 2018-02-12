@@ -64,6 +64,9 @@ def setup(pars):
 @app.route("/") #default load
 def load(ticker='FB', days=3, days_back=365):
   """main table load"""
+
+  millisec1_total = int(round(time.time() * 1000))
+
   prophet = Prophet(ticker, days)
 
   source = 'google'
@@ -103,15 +106,12 @@ def load(ticker='FB', days=3, days_back=365):
   df['Up/Down Guess'] = ''
   df['Price Guess'] = ''
 
-  millisec1 = int(round(time.time() * 1000))
   prophet.set_hmm_state(df, source_key, dict_tiers[source_key])
-  millisec2 = int(round(time.time() * 1000))
-  print ('process:', millisec1, millisec2, millisec2-millisec1)
 
   count_match_ok = int(df['Match'].value_counts()['OK'])
   count_tier_guess_no_data = int(df['Tier Guess'].value_counts()['no data'])
   percent = round(count_match_ok * 100 / days_active, 2)
-  stats_message_tier = "{0} out of {1} ({2}%)".format(count_match_ok, days_active, percent)
+  stats_message_tier = "{0} out of {1} ({2}%)".format(count_match_ok, days_active-count_tier_guess_no_data, percent)
 
   success_count_direction = int(df['Up/Down Guess'].value_counts()['OK'])
   percent = round(success_count_direction * 100 / (days_active-count_tier_guess_no_data), 2)
@@ -163,6 +163,10 @@ def load(ticker='FB', days=3, days_back=365):
                   'html_table_results' : html_table_results,
                   'html_table_main'       : html_table_main
   }
+
+  millisec2_total = int(round(time.time() * 1000))
+  msg = 'TOTAL TIME: %s, %s, %s' % ( millisec1_total, millisec2_total, (millisec2_total-millisec1_total)/1000)
+  prophet.log(msg)
 
   return prophet.parse_template("%s/main.html" % prophet.config.get(prophet.env, 'templates'), dict_content)
 

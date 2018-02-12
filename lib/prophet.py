@@ -6,6 +6,8 @@ import os, sys, inspect
 import configparser #for .ini file
 from datetime import datetime
 import random
+import time
+
 
 class Prophet:
   def __init__(self, ticker, days, inifile='./conf/prophet.ini', env='default', debug=5, logfile='log/prophet.log'):
@@ -56,8 +58,11 @@ class Prophet:
     """"set derived columns of 'Spread', 'Yield', 'Yield % Open' for further calculations"""
 
     df['Yield']        = df['Close'] - df['Open']
-    #s = pd.Series(generate_new_column(func_diff, df['Close'], df['Open'])) #subtraction does not work inside generator
+    #z = (generate_new_column(func_diff, df['Close'], df['Open']))
+    #print ("z:", z)
+    #s = pd.Series(generate_new_column(func_diff, df['Close'], df['Open'])) #subtraction on df does not work inside generator
     #df['Yield'] = s
+    #print ("yield:", df['Yield'])
 
     #TODO think how Spread can be added to the model
     # df['Spread']       = df['High'] - df['Low']
@@ -66,7 +71,10 @@ class Prophet:
     df['Yield % Open'] = df['Yield']
     days = self.days
 
-    for counter, val in enumerate (df['Open']):
+    counter = -1
+    for row in df.itertuples():
+      counter +=  1
+    #for counter, val in enumerate (df['Open']):
       if counter < days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
         #df['Yield Avg'][counter] = 0 #avg yield for <days> previous days
         df['Yield % Open'][counter] = 0
@@ -109,17 +117,32 @@ class Prophet:
     df['Tier Guess'] = ''
     df['Match'] = ''
     counters = {}
-    for counter, record in enumerate(df[source_key]):
+
+    counter = -1
+    for record in df.itertuples():
+      counter += 1
+    #for counter, record in enumerate(df[source_key]):
       # if counter > 50: #TODO REMOVE!!!
       #   break
+
+      # millisec1 = int(round(time.time() * 1000))
 
       #actual state
       df['Tier'][counter] = set_days_state([df[source_key][counter],], dict_tiers_source)
 
+      # millisec2 = int(round(time.time() * 1000))
+      # msg = '111: set_days_state1: %s, %s, %s' % ( millisec1, millisec2, millisec2-millisec1)
+      # self.log(msg)
+
+      # millisec1 = int(round(time.time() * 1000))
       #History of <days> days
       df['History'][counter] = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
       if df['History'][counter] not in counters: #maybe not pythonic, but it's not an exception, so no try /except
         counters[df['History'][counter]] = {}
+
+      # millisec2 = int(round(time.time() * 1000))
+      # msg = '112: set_days_state2: %s, %s, %s' % ( millisec1, millisec2, millisec2-millisec1)
+      # self.log(msg)
 
       if df['Tier'][counter] not in counters[df['History'][counter]]:
         counters[df['History'][counter]][df['Tier'][counter]] = 0
@@ -127,21 +150,35 @@ class Prophet:
       if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
         continue
 
+      # millisec1 = int(round(time.time() * 1000))
       counters[df['History'][counter]][df['Tier'][counter]] += 1 #keep track of frequency
       if not set_guesses(df, counters, counter, dict_tiers_source):
         continue
+      # millisec2 = int(round(time.time() * 1000))
+      # msg = '113: set_guesses: %s, %s, %s' % ( millisec1, millisec2, millisec2-millisec1)
+      # self.log(msg)
 
+    #millisec1 = int(round(time.time() * 1000))
     #backpropagate later-set assumptions  - if we want to use all date range as one unit, i.e. not only chronologically sequencial assumptions
     #can be commented out for the case of only causal chronology
-    for counter, record in enumerate(df[source_key]):
+    #for counter, record in enumerate(df[source_key]):
+    counter = -1
+    for record in df.itertuples():
+      counter += 1
       if counter < self.days:
         continue
       if not set_guesses(df, counters, counter, dict_tiers_source):
         continue
 
+    # millisec2 = int(round(time.time() * 1000))
+    # msg = 'backpropagate: %s, %s, %s' % ( millisec1, millisec2, millisec2-millisec1)
+    # self.log(msg)
+
     return
 
 def set_guesses(df, counters, counter, dict_tiers_source):
+  #yield generate_new_column(1,2)
+
   """set 'Tier Guess', 'Up/Down Guess', and 'Price Guess' columns"""
   #pull out the most popular next entry for a given HMM
   #e.g. '-M|+M|-M': {'+M': 15, '-M': 11, '-L': 1} would return '+M'
