@@ -15,7 +15,7 @@ class Prophet:
     self.env     = env #environment - for the future, to acess different sections of ini files or diferent cloud envs (something like dev, staging, prod, whatever
     self.ticker  = ticker
     self.days    = days
-    self.logfile = logfile #using local default location for the logs since I might not have permissions towrite in your /var/log
+    self.logfile = logfile #using local default location for the logs since I might not have permissions to write in your /var/log
     self.logfile = logfile
     self.debug   = debug #level of verbosity for the screen output and logging; not used so far
 
@@ -36,6 +36,13 @@ class Prophet:
 
   def log(self, msg):
     """log a message in the app logfile, just to avoid installing logging"""
+
+    log_directory = 'log'
+    try:
+        os.stat(log_directory)
+    except:
+        os.mkdir(log_directory)
+
     try:
       with open(self.logfile, "a") as filehandle_log:
         filehandle_log.write("%s: %s\n" % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), msg))

@@ -110,21 +110,23 @@ def load(ticker='FB', days=3, days_back=365):
 
   count_match_ok = int(df['Match'].value_counts()['OK'])
   count_tier_guess_no_data = int(df['Tier Guess'].value_counts()['no data'])
-  percent = round(count_match_ok * 100 / days_active, 2)
-  stats_message_tier = "{0} ({1}%)".format(count_match_ok, percent)
+  percent_tier = round(count_match_ok * 100 / days_active, 2)
+  stats_message_tier = "{0} ({1}%)".format(count_match_ok, percent_tier)
 
   success_count_direction = int(df['Up/Down Guess'].value_counts()['OK'])
-  percent = round(success_count_direction * 100 / (days_active-count_tier_guess_no_data), 2)
-  stats_message_direction = "{0} ({1}%)".format(success_count_direction, percent)
+  percent_up_down = round(success_count_direction * 100 / (days_active-count_tier_guess_no_data), 2)
+  stats_message_direction = "{0} ({1}%)".format(success_count_direction, percent_up_down)
 
-  #experiment with charts lib #TODO: remove at the end
-  # chart_type = 'discreteBarChart'
-  # chart = nvd3.discreteBarChart(name=chart_type, height=500, width=500)
-  # ydata = [float(x) for x in np.random.randn(10)]
-  # xdata = [int(x) for x in np.arange(10)]
-  # chart.add_serie(y=ydata, x=xdata)
-  # chart.buildhtml()
-  # html_chart = str(chart.htmlcontent)
+  chart = nvd3.multiBarChart(width=600, height=200, x_axis_format=None)
+
+  xdata = ['Tier Guessed', 'Up/Down Guessed']
+  ydata1 = [count_match_ok, success_count_direction]
+  ydata2 = [percent_tier, percent_up_down]
+
+  chart.add_serie(name="Total Success", y=ydata1, x=xdata)
+  chart.add_serie(name="Percent Success", y=ydata2, x=xdata)
+  chart.buildhtml()
+  html_chart_percents = str(chart.htmlcontent)
 
   # no display required for the analyzed date range itself (first <days> days) even if they got formatted to zeroes or something
   df['Tier'][0:days] = ''
@@ -148,7 +150,7 @@ def load(ticker='FB', days=3, days_back=365):
   #reorder
   df_table_request = df_table_request[['Browser Request Format', 'Ticker', 'Days to Analyze', 'Tier Low (L)', 'Tier Medium (M)', 'Tier High (H)']]
   #does not work
-  #df_table_header.drop(df_table_header.columns[1], axis=1) #drop bogus empty column with "0"
+  #df_table_request.drop(df_table_header.columns[1], axis=1) #drop bogus empty column with "0"
   html_table_request = df_table_request.to_html()
 
   dict_table_results = {
@@ -161,7 +163,8 @@ def load(ticker='FB', days=3, days_back=365):
   dict_content = {
                   'html_table_request' : html_table_request,
                   'html_table_results' : html_table_results,
-                  'html_table_main'       : html_table_main
+                  'html_table_main'    : html_table_main,
+                  'html_chart_percents'         : html_chart_percents
   }
 
   millisec2_total = int(round(time.time() * 1000))
