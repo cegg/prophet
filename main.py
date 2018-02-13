@@ -71,7 +71,6 @@ def load(ticker='FB', days=3, days_back=365):
 
   source = 'google'
 
-
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
   #e.g. 'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
   #The other way is to use ".reindex" on the output instead on date_range output
@@ -118,15 +117,14 @@ def load(ticker='FB', days=3, days_back=365):
   stats_message_direction = "{0} ({1}%)".format(success_count_direction, percent_up_down)
 
   chart = nvd3.multiBarChart(width=600, height=200, x_axis_format=None)
-
-  xdata = ['Tier Guessed', 'Up/Down Guessed']
+  xdata = ['Tier Guessed / Tier Percent Guessed', 'Up/Down Guessed/ Up/Down Percent Guessed']
   ydata1 = [count_match_ok, success_count_direction]
   ydata2 = [percent_tier, percent_up_down]
-
   chart.add_serie(name="Total Success", y=ydata1, x=xdata)
   chart.add_serie(name="Percent Success", y=ydata2, x=xdata)
   chart.buildhtml()
   html_chart_percents = str(chart.htmlcontent)
+
 
   # no display required for the analyzed date range itself (first <days> days) even if they got formatted to zeroes or something
   df['Tier'][0:days] = ''
@@ -172,7 +170,6 @@ def load(ticker='FB', days=3, days_back=365):
   prophet.log(msg)
 
   return prophet.parse_template("%s/main.html" % prophet.config.get(prophet.env, 'templates'), dict_content)
-
 
 
 if __name__ == "__main__":
