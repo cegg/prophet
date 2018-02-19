@@ -95,6 +95,74 @@ def load(ticker='FB', days=3, days_back=365):
   # df = panel.to_frame()
   df = panel[:,:,ticker] # drop vertical minor axis, it's one ticker anyway
 
+
+  millisec1 = int(round(time.time() * 1000))
+  df = prophet.enrich(df)
+  millisec2 = int(round(time.time() * 1000))
+  msg = 'ENRICH TIME: %s, %s, %s' % ( millisec1, millisec2, (millisec2-millisec1)/1000)
+  prophet.log(msg)
+
+  dict_tiers = prophet.set_tiers(df)
+
+  source_key = 'Yield % Open'
+
+  df['Tier'] = ''
+
+  # no display required for the analyzed date range itself (first <days> days) even if they got formatted to zeroes or something
+  df['Tier'][0:days] = ''
+  df['Yield'][0:days] = ''
+  #df['Yield % Open'][0:days] = ''
+
+  #reorder
+  df = df[['#', 'Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open']]
+  html_table_main = str(df.to_html())
+  #html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting ehre
+
+
+  dict_content = {
+                  'html_table_main'    : html_table_main
+  }
+
+  millisec2_total = int(round(time.time() * 1000))
+  msg = 'TOTAL TIME: %s, %s, %s' % ( millisec1_total, millisec2_total, (millisec2_total-millisec1_total)/1000)
+  prophet.log(msg)
+
+  return prophet.parse_template("%s/main_short.html" % prophet.config.get(prophet.env, 'templates'), dict_content)
+
+@app.route("/load_old") #default load
+def load_old(ticker='FB', days=3, days_back=365):
+  """main table load"""
+
+  millisec1_total = int(round(time.time() * 1000))
+
+  prophet = Prophet(ticker, days)
+
+  source = 'google'
+
+  #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
+  #e.g. 'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
+  #The other way is to use ".reindex" on the output instead on date_range output
+  weeks = days_back // 7 #integer number of weeks in the requested range
+  days_active = days_back - weeks*2 + days
+  #user input makes no sense. should not hapen at this point but it's better be safe
+  if days_active < 3:
+    error = "User requested invalid date range"
+    prophet.log(error)
+    return error
+
+  datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
+
+  #a call to a third-party API - needs to be checked
+  try:
+    panel = data.DataReader([ticker], source, datelist[0], datelist[-1])
+  except:
+    error  = "failed to get data from %s" % source
+    prophet.log(error)
+    return error # just serve the error description in this case
+
+  # df = panel.to_frame()
+  df = panel[:,:,ticker] # drop vertical minor axis, it's one ticker anyway
+
   df = prophet.enrich(df)
   dict_tiers = prophet.set_tiers(df)
 
@@ -103,7 +171,7 @@ def load(ticker='FB', days=3, days_back=365):
   # avoid type collisions
   df['Tier'] = ''
   df['Up/Down Guess'] = ''
-  df['Price Guess'] = ''
+  df['Price Guess']   = ''
 
   prophet.set_hmm_state(df, source_key, dict_tiers[source_key])
 
@@ -112,19 +180,29 @@ def load(ticker='FB', days=3, days_back=365):
   percent_tier = round(count_match_ok * 100 / days_active, 2)
   stats_message_tier = "{0} ({1}%)".format(count_match_ok, percent_tier)
 
-  success_count_direction = int(df['Up/Down Guess'].value_counts()['OK'])
-  percent_up_down = round(success_count_direction * 100 / (days_active-count_tier_guess_no_data), 2)
-  stats_message_direction = "{0} ({1}%)".format(success_count_direction, percent_up_down)
+  count_direction_ok = int(df['Up/Down Guess'].value_counts()['OK'])
+  percent_up_down = round(count_direction_ok * 100 / (days_active-count_tier_guess_no_data), 2)
+  stats_message_direction = "{0} ({1}%)".format(count_direction_ok, percent_up_down)
 
-  chart = nvd3.multiBarChart(width=600, height=200, x_axis_format=None)
-  xdata = ['Tier Guessed / Tier Percent Guessed', 'Up/Down Guessed/ Up/Down Percent Guessed']
-  ydata1 = [count_match_ok, success_count_direction]
-  ydata2 = [percent_tier, percent_up_down]
-  chart.add_serie(name="Total Success", y=ydata1, x=xdata)
-  chart.add_serie(name="Percent Success", y=ydata2, x=xdata)
-  chart.buildhtml()
-  html_chart_percents = str(chart.htmlcontent)
+  # chart = nvd3.multiBarChart(name="Guess Count", width=600, height=200, x_axis_format=None)
+  # chart.set_containerheader("\n\n<h2>1111</h2>\n\n")
+  # xdata = ['Tier Guessed', 'Up/Down Guessed']
+  # ydata1 = [count_match_ok, count_direction_ok]
+  # chart.add_serie(name="Total Success", y=ydata1, x=xdata)
+  # #chart.add_serie(name="Percent Success", y=ydata2, x=xdata)
+  # chart.buildhtml()
+  # html_chart_count = str(chart.htmlcontent)
+  # print (dir(chart))
 
+  chart1 = nvd3.multiBarChart(name="Guess Count Percent", width=600, height=200, x_axis_format=None)
+  chart1.set_containerheader("\n\n<h2>set container</h2>\n\n")
+  xdata = ['Tier Percent Guessed', 'Up/Down Percent Guessed']
+  ydata1 = [percent_tier, percent_up_down]
+  chart1.add_serie(name="Total Success Percent", y=ydata1, x=xdata)
+  #chart.add_serie(name="Percent Success", y=ydata2, x=xdata)
+  chart1.buildhtml()
+  html_chart_percents = str(chart1.htmlcontent)
+  print (dir(chart1))
 
   # no display required for the analyzed date range itself (first <days> days) even if they got formatted to zeroes or something
   df['Tier'][0:days] = ''
@@ -132,7 +210,7 @@ def load(ticker='FB', days=3, days_back=365):
   df['Yield % Open'][0:days] = ''
 
   #reorder
-  df =df[['Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
+  df = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
   html_table_main = str(df.to_html())
   html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting ehre
 
@@ -158,11 +236,12 @@ def load(ticker='FB', days=3, days_back=365):
                       }
   df_table_results = pd.DataFrame.from_dict(dict_table_results)
   html_table_results = df_table_results.to_html()
+
   dict_content = {
                   'html_table_request' : html_table_request,
                   'html_table_results' : html_table_results,
                   'html_table_main'    : html_table_main,
-                  'html_chart_percents'         : html_chart_percents
+                  'html_chart_percents': html_chart_percents
   }
 
   millisec2_total = int(round(time.time() * 1000))

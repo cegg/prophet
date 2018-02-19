@@ -63,37 +63,10 @@ class Prophet:
 
   def enrich(self, df):
     """"set derived columns of 'Spread', 'Yield', 'Yield % Open' for further calculations"""
-
+    df['#'] = range(len(df))
     df['Yield']        = df['Close'] - df['Open']
-    #z = (generate_new_column(func_diff, df['Close'], df['Open']))
-    #print ("z:", z)
-    #s = pd.Series(generate_new_column(func_diff, df['Close'], df['Open'])) #subtraction on df does not work inside generator
-    #df['Yield'] = s
-    #print ("yield:", df['Yield'])
-
-    #TODO think how Spread can be added to the model
-    # df['Spread']       = df['High'] - df['Low']
-    #df['Yield Avg']    = df['Yield'] #TODO figure out why setting to zero breaks calculations below
-
-    df['Yield % Open'] = df['Yield']
+    df['Yield % Open']   = round (df['Yield'] / df['Open']*100, 4)
     days = self.days
-
-    counter = -1
-    for row in df.itertuples():
-      counter +=  1
-    #for counter, val in enumerate (df['Open']):
-      if counter < days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
-        #df['Yield Avg'][counter] = 0 #avg yield for <days> previous days
-        df['Yield % Open'][counter] = 0
-        continue
-
-      #get avg yield (amount and percent) for three previous days
-      #df['Yield Avg'][counter]      = round (df['Yield'][counter-days:counter-1].sum() / days, 2)
-      df['Yield % Open'][counter]   = round (df['Yield'][counter] / df['Open'][counter]*100, 4)
-      #print ("range: ", df['Yield % Open'][counter-days:counter-1], "sum:", df['Yield % Open'][counter-days:counter-1].sum(), "sum/3:", df['Yield % Open'][counter-days:counter-1].sum() / days)
-      # if counter > 50: #debug #TODO!!! REMEMBER TO REMOVE!!!
-      #   break
-
     return df
 
   def set_tiers(self, df, column_names=('Yield % Open',)):
