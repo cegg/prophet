@@ -262,7 +262,7 @@ def load_old(ticker='FB', days=3, days_back=365):
   df['Yield % Open'][0:days] = ''
 
   #reorder
-  df = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
+  df = df[['#', 'Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
   html_table_main = str(df.to_html())
   html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting here
 
