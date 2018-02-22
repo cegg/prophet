@@ -11,8 +11,11 @@ import pandas as pd
 
 #set where to find locally installed packages
 currentdir = os.path.abspath(inspect.getfile(inspect.currentframe()))
-libdir = os.path.dirname(currentdir) + '/lib'
-sys.path.insert(0,libdir)
+sys.path.insert(0,os.path.dirname(currentdir))
+sys.path.insert(0,os.path.dirname(currentdir) + '/lib')
+
+#libdir = os.path.dirname(currentdir) + '/lib'
+#sys.path.insert(0,libdir)
 
 #import locally installed packages from requirements.txt
 from flask import Flask
@@ -46,12 +49,12 @@ def setup(pars):
   days_back = int(days_back)
   if days > 5:
     return "No more than 5 days of history range for a given day can be analyzed"
-  if days_back > 700:
-    return "No more than 700 days of ticker history range can be analyzed"
+  if days_back > 1000:
+    return "No more than 1000 days of ticker history range can be analyzed"
 
   if (days_back/days < 100):
     return "Unrealistic ratio of ticker history range to record history range. Increase ticker history range or decrease record history range to be analyzed."
-
+  print (ticker, days, days_back)
   return load(ticker, days, days_back)
 
 #@app.route('/<regex("[abcABC0-9]{4,6}"):uid>-<slug>/')
@@ -93,7 +96,7 @@ def load(ticker='FB', days=3, days_back=365):
     return error # just serve the error description in this case
 
   # df = panel.to_frame()
-  df = panel[:,:,ticker] # drop vertical minor axis, it's one ticker anyway
+  df = panel[:,:,ticker] # drop vertical minor axis, it's only one ticker anyway
 
 
   millisec1 = int(round(time.time() * 1000))
@@ -108,31 +111,80 @@ def load(ticker='FB', days=3, days_back=365):
 
   df['Tier'] = ''
 
+  prophet.set_hmm_state(df, source_key, dict_tiers[source_key])
+
+  count_match_ok = int(df['Match'].value_counts()['OK'])
+  count_tier_guess_no_data = int(df['Tier Guess'].value_counts()['no data'])
+  percent_tier = round(count_match_ok * 100 / days_active, 2)
+  stats_message_tier = "{0} ({1}%)".format(count_match_ok, percent_tier)
+
+  count_direction_ok = int(df['Up/Down Guess'].value_counts()['OK'])
+  percent_up_down = round(count_direction_ok * 100 / (days_active-count_tier_guess_no_data), 2)
+  stats_message_direction = "{0} ({1}%)".format(count_direction_ok, percent_up_down)
+
   # no display required for the analyzed date range itself (first <days> days) even if they got formatted to zeroes or something
-  df['Tier'][0:days] = ''
-  df['Yield'][0:days] = ''
+  df['Tier Guess'][0:days] = ''
+  #df['Yield'][0:days] = ''
   #df['Yield % Open'][0:days] = ''
+  df['Match'][0:days] = ''
+  df['Up/Down Guess'][0:days] = ''
+  df['Price Guess'][0:days] = ''
 
   #reorder
-  df = df[['#', 'Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open']]
+  df = df[['#', 'Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
+  #df = df[['#', 'Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier']]
   html_table_main = str(df.to_html())
-  #html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting ehre
+  html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting ehre
 
+  column_name = 'Yield % Open'
+  dict_table_request = { 'Ticker': [ticker],
+                        'Days to Analyze': [days],
+                        'Browser Request Format': ['http://127.0.01.:5000/[<ticker>,<days>,<range>]'],
+                        'Tier Low (L)': ["%s : %s" % (dict_tiers[column_name]['min'], dict_tiers[column_name]['tier_low_top'])],
+                        'Tier Medium (M)': ["%s : %s" % (dict_tiers[column_name]['tier_low_top' ], dict_tiers[column_name]['tier_medium_top'])],
+                        'Tier High (H)': ["%s : %s" % (dict_tiers[column_name]['tier_medium_top' ], dict_tiers[column_name]['max'])]
+                      }
+  df_table_request = pd.DataFrame.from_dict(dict_table_request)
+  #reorder
+  df_table_request = df_table_request[['Browser Request Format', 'Ticker', 'Days to Analyze', 'Tier Low (L)', 'Tier Medium (M)', 'Tier High (H)']]
+  #does not work
+  #df_table_request.drop(df_table_header.columns[1], axis=1) #drop bogus empty column with "0"
+  html_table_request = df_table_request.to_html()
+
+  dict_table_results = {
+                        'Days Active': [days_active-count_tier_guess_no_data],
+                        'Tier Guessed': [stats_message_tier],
+                        'Up/Down Guessed': [stats_message_direction]
+                      }
+  df_table_results = pd.DataFrame.from_dict(dict_table_results)
+  html_table_results = df_table_results.to_html()
+
+  chart_percent = nvd3.multiBarChart(name="Guess Count Percent", width=600, height=200, x_axis_format=None)
+  xdata = ['Tier Percent Guessed', 'Up/Down Percent Guessed']
+  ydata1 = [percent_tier, percent_up_down]
+  chart_percent.add_serie(name="Total Success Percent", y=ydata1, x=xdata)
+  #chart.add_serie(name="Percent Success", y=ydata2, x=xdata)
+  chart_percent.buildhtml()
+  html_chart_percents = str(chart_percent.htmlcontent)
 
   dict_content = {
-                  'html_table_main'    : html_table_main
+                  'html_table_request' : html_table_request,
+                  'html_table_results' : html_table_results,
+                  'html_table_main'    : html_table_main,
+                  'html_chart_percents': html_chart_percents
   }
 
   millisec2_total = int(round(time.time() * 1000))
   msg = 'TOTAL TIME: %s, %s, %s' % ( millisec1_total, millisec2_total, (millisec2_total-millisec1_total)/1000)
   prophet.log(msg)
 
-  return prophet.parse_template("%s/main_short.html" % prophet.config.get(prophet.env, 'templates'), dict_content)
+  return prophet.parse_template("%s/main.html" % prophet.config.get(prophet.env, 'templates'), dict_content)
 
 @app.route("/load_old") #default load
 def load_old(ticker='FB', days=3, days_back=365):
-  """main table load"""
+  """deprecated - main table load"""
 
+  return 'deprecated'
   millisec1_total = int(round(time.time() * 1000))
 
   prophet = Prophet(ticker, days)
@@ -173,7 +225,7 @@ def load_old(ticker='FB', days=3, days_back=365):
   df['Up/Down Guess'] = ''
   df['Price Guess']   = ''
 
-  prophet.set_hmm_state(df, source_key, dict_tiers[source_key])
+  prophet.set_hmm_state_v1(df, source_key, dict_tiers[source_key])
 
   count_match_ok = int(df['Match'].value_counts()['OK'])
   count_tier_guess_no_data = int(df['Tier Guess'].value_counts()['no data'])
@@ -212,7 +264,7 @@ def load_old(ticker='FB', days=3, days_back=365):
   #reorder
   df = df[['Open', 'High', 'Low', 'Close', 'Volume', 'Yield', 'Yield % Open', 'History', 'Tier', 'Tier Guess', 'Match', 'Up/Down Guess', 'Price Guess']]
   html_table_main = str(df.to_html())
-  html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting ehre
+  html_table_main = html_table_main.replace(" Guess", "<br>Guess") # not sure how to edit df title entries without changing keys of df, so just quick formatting here
 
   column_name = 'Yield % Open'
   dict_table_request = { 'Ticker': [ticker],

@@ -98,6 +98,110 @@ class Prophet:
     df['Match'] = ''
     counters = {}
 
+    millisec1 = int(round(time.time() * 1000))
+
+    tier          = []
+    history       = []
+    tier_guess    = []
+    price_guess   = []
+    match         = []
+    up_down_guess = []
+    counter = -1
+    for record in df.itertuples():
+      counter += 1
+
+      #actual state
+      tier_item = set_days_state([df[source_key][counter],], dict_tiers_source)
+      tier.append(tier_item)
+
+      history_item = set_days_state(df[source_key][counter-self.days:counter], dict_tiers_source) #counter in the range means counter-1
+      history.append(history_item)
+      if history_item not in counters: #maybe not pythonic, but it's not an exception, so no try /except
+        counters[history_item] = {}
+
+      if tier_item not in counters[history_item]:
+        counters[history_item][tier_item] = 0
+
+      #if counter < self.days: #starting days that are used for calculating things for the following days but do not have predecessors to do produce preditions of their own
+      #  continue
+
+      close_item_previous = df['Close'][counter-1]
+      counters[history_item][tier_item] += 1 #keep track of frequency of current state by previous chain
+
+      # try:
+      #   (tier_guess_item, price_guess_item, match_item, up_down_guess_item) = set_guesses(counter, counters, tier_item, history_item, close_item_previous, dict_tiers_source)
+      # except:
+      #   print('no data case at ' , counter)
+      #   tier_guess_item = 'no data'
+      #   price_guess_item = 'no data'
+      #   match_item = 'no data'
+      #   up_down_guess_item = 'no data'
+      (tier_guess_item, price_guess_item, match_item, up_down_guess_item) = set_guesses(counter, counters, tier_item, history_item, close_item_previous, dict_tiers_source)
+
+      tier_guess.append(tier_guess_item)
+      price_guess.append(price_guess_item)
+      match.append(match_item)
+      up_down_guess.append(up_down_guess_item)
+
+    df['Tier']    = tier
+    df['History'] = history
+    df['Tier Guess'] = tier_guess
+    df['Price Guess'] = price_guess
+    df['Match'] = match
+    df['Up/Down Guess'] = up_down_guess
+    self.log('set df')
+    millisec2 = int(round(time.time() * 1000))
+    msg = 'set_hmm_state: %s, %s, %s' % ( millisec1, millisec2, millisec2-millisec1)
+    self.log(msg)
+
+    tier_guess    = []
+    price_guess   = []
+    match         = []
+    up_down_guess = []
+    #backpropagate later-set assumptions  - if we want to use all date range as one unit, i.e. not only chronologically sequencial assumptions
+    #can be commented out for the case of only causal chronology
+    #for counter, record in enumerate(df[source_key]):
+    counter = -1
+    for record in df.itertuples():
+      counter += 1
+      #if counter < self.days:
+      #  continue
+      close_item_previous = df['Close'][counter-1]
+      tier_item = df['Tier'][counter]
+      history_item = df['History'][counter]
+
+      # try:
+      #   (tier_guess_item, price_guess_item, match_item, up_down_guess_item) = set_guesses(counter, counters, tier_item, history_item, close_item_previous, dict_tiers_source)
+      # except:
+      #   print('no data case at ' , counter)
+      #   tier_guess_item = 'no data'
+      #   price_guess_item = 'no data'
+      #   match_item = 'no data'
+      #   up_down_guess_item = 'no data'
+      (tier_guess_item, price_guess_item, match_item, up_down_guess_item) = set_guesses(counter, counters, tier_item, history_item, close_item_previous, dict_tiers_source)
+
+
+      tier_guess.append(tier_guess_item)
+      price_guess.append(price_guess_item)
+      match.append(match_item)
+      up_down_guess.append(up_down_guess_item)
+
+    df['Tier']    = tier
+    df['History'] = history
+    df['Tier Guess'] = tier_guess
+    df['Price Guess'] = price_guess
+    df['Match'] = match
+    df['Up/Down Guess'] = up_down_guess
+
+    return
+
+  def set_hmm_state_v1(self, df, source_key, dict_tiers_source):
+    """assign actual state from historicaldata (up/down and tier char) for the record, e,g, +M"""
+    df['History'] = ''
+    df['Tier Guess'] = ''
+    df['Match'] = ''
+    counters = {}
+
     counter = -1
     for record in df.itertuples():
       counter += 1
@@ -132,7 +236,7 @@ class Prophet:
 
       # millisec1 = int(round(time.time() * 1000))
       counters[df['History'][counter]][df['Tier'][counter]] += 1 #keep track of frequency
-      if not set_guesses(df, counters, counter, dict_tiers_source):
+      if not set_guesses_old(df, counters, counter, dict_tiers_source):
         continue
       # millisec2 = int(round(time.time() * 1000))
       # msg = '113: set_guesses: %s, %s, %s' % ( millisec1, millisec2, millisec2-millisec1)
@@ -147,7 +251,7 @@ class Prophet:
       counter += 1
       if counter < self.days:
         continue
-      if not set_guesses(df, counters, counter, dict_tiers_source):
+      if not set_guesses_old(df, counters, counter, dict_tiers_source):
         continue
 
     # millisec2 = int(round(time.time() * 1000))
@@ -156,10 +260,69 @@ class Prophet:
 
     return
 
-def set_guesses(df, counters, counter, dict_tiers_source):
+def set_guesses(counter, counters, tier_item, history_item, close_item_previuos, dict_tiers_source):
+  """set 'Tier Guess', 'Up/Down Guess', and 'Price Guess' columns"""
+  #pull out the most popular next entry for a given HMM
+  #e.g. '-M|+M|-M': {'+M': 15, '-M': 11, '-L': 1} would return '+M'
+  #e.g. '+H|+H|+H': {'-L': 1} would return return 'no data' - a single occurence, does nto influence anything besides itself
+  #e.g. '-L|+H|-M': {'+M': 1, '-M': 1} - if curent record had +M, then returns the other one ( -M)
+  #e.g. '-L|+H|-M': {'+M': 1, '-M': 1, '+L': 1} - returns randomly selected out of all excluding current record pattern, i.e if current record is '+M' it's randomly selected from the other two
+  #print ("\n<======", counters[history_item], "======>")
+  list_counter_value = list(counters[history_item].values())
+
+  if len(list_counter_value) == 0:
+    #nothing assigned so far, set default and keep looping
+    #print ("CASE 1 no data so far, SKIPPING")
+    return 'no data', 'no data', 'no data', 'no data'
+  elif len(list_counter_value) == 1:
+    if list_counter_value[0] == 1:
+      #just one entry of 1, which means current record itself, should be ignored
+      #print ("CASE 2 one entry, ==1, SKIPPING")
+      return 'no data', 'no data', 'no data', 'no data'
+    else:
+      #good data but one entry, well, just use it
+      tier_guess_item = list(counters[history_item].keys())[0] #in python3 needs to be 'list'ed because it's an object now
+      #print ("CASE 3, one entry, good data, set to ", tier_guess_item)
+  elif check_all_values_equal(list_counter_value): #more than one entry but all counters are equal
+    #if counters are higher than 1, take the most recent one, otherwise consider no data
+    if list_counter_value[0] == 1:
+      #print ("CASE 4, more than one and all equal and ==1, choosing randomly from non-current: ", list_counter_value)
+      dict_temp = counters[history_item].copy()
+      del dict_temp[tier_item]
+      tier_guess_item = random.choice(list(dict_temp.keys()))
+    else: #there is some inconclusive statistics here, let's select one randomly. That probably will break a lot of ties further down the loop
+      #TODO: maybe assign to the tier that is close the latest entry in the HMM instead?
+      tier_guess_item = random.choice(list(counters[history_item].keys())) #call list on the returned object in python3
+      #print ("CASE 5, more than one and all equal but greater than 1, choosing randomly from : ", list_counter_value, "vinner:", tier_guess_item)
+  else:
+    #good, substantial data to make a decision
+    tier_guess_item =  max(counters[history_item], key=counters[history_item].get)
+    #print ("CASE 6: winner: ", tier_guess_item)
+
+
+  match_item = ''
+  if tier_guess_item == tier_item:
+    match_item = 'OK'
+
+  up_down_guess_item = ''
+  if tier_guess_item[0] == tier_item[0]:
+    up_down_guess_item = 'OK'
+
+  price_guess_item = close_item_previuos
+  if tier_guess_item[-1] == 'L':
+    price_guess_item += dict_tiers_source['tier_low_mean']
+  elif tier_guess_item[-1] == 'M':
+    price_guess_item += dict_tiers_source['tier_medium_mean']
+  elif tier_guess_item[-1] == 'H':
+    price_guess_item += dict_tiers_source['tier_high_mean']
+
+  return tier_guess_item, price_guess_item, match_item, up_down_guess_item
+
+
+def set_guesses_old(df, counters, counter, dict_tiers_source):
   #yield generate_new_column(1,2)
 
-  """set 'Tier Guess', 'Up/Down Guess', and 'Price Guess' columns"""
+  """deprecated - set 'Tier Guess', 'Up/Down Guess', and 'Price Guess' columns"""
   #pull out the most popular next entry for a given HMM
   #e.g. '-M|+M|-M': {'+M': 15, '-M': 11, '-L': 1} would return '+M'
   #e.g. '+H|+H|+H': {'-L': 1} would return return 'no data' - a single occurence, does nto influence anything besides itself
