@@ -7,10 +7,15 @@ Stock Analyser by ticker, sample size and period
 
 
 Getting Started
+
   unzip
+  
   cd prophet
+  
   pip3 install -t lib -r requirements.txt
+  
   python3 main.py
+  
 
   github:
 
