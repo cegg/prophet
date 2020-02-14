@@ -6,6 +6,7 @@ if (3/2 == 1):
   sys.exit("wrong python. use 3.x")
 
 import os, inspect
+from datetime import datetime
 import numpy as np
 import pandas as pd
 
@@ -72,7 +73,15 @@ def load(ticker='FB', days=3, days_back=365):
 
   prophet = Prophet(ticker, days)
 
-  source = 'google'
+  api_keys = {}
+  api_keys['quandl'] = 'XiZGyG82xNUhXdKoCqzp'
+  api_keys['iex']    = 'pk_e55ec0c594dc47c9b4a7190179cf34f6'
+
+  os.environ['QUANDL_API_KEY'] = api_keys['quandl']
+  os.environ['IEX_API_KEY']    = api_keys['iex']
+
+  start = datetime(2016, 9, 1)
+  end = datetime(2018, 9, 1)
 
   #since we are using pandas anyway, let's take advantage of weekend-skipping call from the beginning
   #e.g. 'last 365 days' really means 'all weekdays in the last 365 days' which is 261, plus 3 days to prime the first 3 predictions
@@ -85,22 +94,49 @@ def load(ticker='FB', days=3, days_back=365):
     prophet.log(error)
     return error
 
-  datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
+  datelist = pd.bdate_range(end=datetime.today(), periods=days_active).tolist()
 
+  ticker_formatted = 'WIKI/%s' % ticker
+
+
+  datelist[0] = '2018-01-01'
+  datelist[-1] = '2019-06-01'
+  print(datelist[0], datelist[-1])
+
+  source = 'iex'
+  try:
+  # open   high    low  close    volume
+    df_iex = data.DataReader('INTC', source, start, end)
+    print(df_iex)
+  except:
+    error  = "failed to get data from %s" % source
+    prophet.log(error)
+    # return error # just serve the error description in this case
+
+  source = 'quandl' #quandl returns no data after march 2018
   #a call to a third-party API - needs to be checked
   try:
-    panel = data.DataReader([ticker], source, datelist[0], datelist[-1])
+    # panel = data.DataReader(ticker_formatted, source, '2018-01-01', '2018-04-14')
+    panel = data.DataReader(ticker_formatted, source, datelist[0], datelist[-1])    
+    print("panel:", len(panel.index), "\n", panel)
+    # panel = data.DataReader([ticker], source, datelist[0], datelist[-1])
   except:
     error  = "failed to get data from %s" % source
     prophet.log(error)
     return error # just serve the error description in this case
 
-  # df = panel.to_frame()
-  df = panel[:,:,ticker] # drop vertical minor axis, it's only one ticker anyway
+  if len(panel.index) == 0:
+    return 'no data'
 
+  # df_quandl = panel.to_frame()
+
+  print(dir(panel))
+  # df_quandl = panel[:,:,ticker_formatted] # drop vertical minor axis, it's only one ticker anyway
+  df_quandl = panel
+  df_quandl = df_quandl.sort_values('Date')
 
   millisec1 = int(round(time.time() * 1000))
-  df = prophet.enrich(df)
+  df = prophet.enrich(df_quandl)
   millisec2 = int(round(time.time() * 1000))
   msg = 'ENRICH TIME: %s, %s, %s' % ( millisec1, millisec2, (millisec2-millisec1)/1000)
   prophet.log(msg)
@@ -202,7 +238,7 @@ def load_old(ticker='FB', days=3, days_back=365):
     prophet.log(error)
     return error
 
-  datelist = pd.bdate_range(end=pd.datetime.today(), periods=days_active).tolist()
+  datelist = pd.bdate_range(end=datetime.today(), periods=days_active).tolist()
 
   #a call to a third-party API - needs to be checked
   try:

@@ -75,7 +75,7 @@ http://127.0.0.1:5000/GOOG,5,500
 
 TODO:
 1. The single most important thing to improve is the performance. The dataframe processing code
-takes most of the time, up to 40 seconds on my MacBook Pro. I tried to replace copule of subs with
+takes most of the time, up to 40 seconds on my MacBook Pro. I tried to replace couple of subs with
 generators but generators did not yield correctly pandas dataframe elements and constrcted some
 Series with basically garbage, and I did not have time to figure out what it's about. That I can
 spend some time on this coming weekend if it matters to you.
